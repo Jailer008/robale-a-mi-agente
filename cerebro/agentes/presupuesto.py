@@ -16,8 +16,8 @@ NOMBRE = "presupuesto"
 MAX_ANTIGUEDAD_FX_DIAS = 7
 
 
-def _h(motivo: str) -> Hallazgo:
-    return Hallazgo(agente=NOMBRE, severidad=1, motivo=motivo, campo="moneda")
+def _h(motivo: str, codigo: str = "CONTRATO") -> Hallazgo:
+    return Hallazgo(agente=NOMBRE, severidad=1, motivo=motivo, campo="moneda", codigo=codigo)
 
 
 def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
@@ -33,7 +33,8 @@ def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
     else:
         if antiguedad > MAX_ANTIGUEDAD_FX_DIAS or antiguedad < 0:
             hallazgos.append(_h(f"La tasa {fx.moneda} es del {fx.fecha}: fuera de la ventana de "
-                                f"{MAX_ANTIGUEDAD_FX_DIAS} días respecto al {ctx.ref_date.isoformat()}."))
+                                f"{MAX_ANTIGUEDAD_FX_DIAS} días respecto al {ctx.ref_date.isoformat()}.",
+                                "ERROR_TECNICO"))
 
     contrato = ctx.contrato
     if contrato and contrato.get("tasa_pactada_por_usd") is not None and str(contrato["moneda"]).upper() == fx.moneda:

@@ -3,6 +3,11 @@
 ALLOW solo si TODAS las condiciones del `permit` se cumplen y la extracción está validada.
 Cada condición que falla devuelve su severidad y su frase en español.
 Si falta un dato para evaluar una regla de dinero, la regla no se da por cumplida.
+
+v2 (AVISO_DEV2_cambios.md): cuenta no registrada y proveedor no permitido son severidad 2
+(FRENAR, no aprobables). Excepción: si la extracción no está validada, el proveedor y la cuenta
+leídos no son confiables; esas reglas quedan en severidad 1 y la decisión es ESCALAR NO aprobable
+(EXTRACCION). Así una foto borrosa no se clasifica como fraude ni se puede aprobar.
 """
 
 from __future__ import annotations
@@ -10,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from cerebro.codigos import POR_REGLA
 from cerebro.contexto import Contexto
 from cerebro.dinero import usd_es
 from cerebro.normalizar import ultimos4
@@ -24,9 +30,13 @@ class Falla:
     campo: str | None = None
     evidencia: str = ""
 
+    @property
+    def codigo(self) -> str:
+        return POR_REGLA.get(self.regla, "ERROR_TECNICO")
+
     def como_hallazgo(self) -> Hallazgo:
         return Hallazgo(agente="reglas", severidad=self.severidad, motivo=self.motivo,
-                        evidencia=self.evidencia or f"regla={self.regla}", campo=self.campo)
+                        evidencia=self.evidencia or f"regla={self.regla}", campo=self.campo, codigo=self.codigo)
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,18 +81,20 @@ def evaluar(ctx: Contexto) -> Evaluacion:
         fallas.append(Falla("fx", 1, f"No se puede convertir el monto a USD de forma confiable ({moneda}); "
                             "no se evalúan los límites de dinero.", "moneda"))
 
+    identidad = 2 if (ctx.extraccion_ok and not ctx.problemas) else 1   # v2: FRENAR si el dato es confiable
     if ctx.beneficiario_bloqueado:
         fallas.append(Falla("beneficiario_bloqueado", 2, "El proveedor está bloqueado por la empresa.", "proveedor"))
     elif not ctx.beneficiario_permitido:
         nombre = (ctx.proveedor or {}).get("nombre") or ctx.nombre_factura
-        fallas.append(Falla("beneficiario_no_permitido", 1, f"'{nombre}' no está en la lista aprobada.", "proveedor"))
+        fallas.append(Falla("beneficiario_no_permitido", identidad, f"'{nombre}' no está en la lista aprobada.",
+                            "proveedor"))
     elif not ctx.cuenta_coincide:
         registrada = ultimos4(ctx.proveedor.get("cuenta_registrada"))
         if ctx.cuenta_factura:
             motivo = f"Cuenta termina en {ultimos4(ctx.cuenta_factura)}; la registrada termina en {registrada}."
         else:
             motivo = f"No se pudo leer la cuenta de la factura; la registrada termina en {registrada}."
-        fallas.append(Falla("cuenta", 1, motivo, "cuenta_bancaria"))
+        fallas.append(Falla("cuenta", identidad, motivo, "cuenta_bancaria"))
 
     if ctx.monto_usd_cents is not None:
         fallas += _reglas_de_dinero(ctx, ctx.monto_usd_cents)

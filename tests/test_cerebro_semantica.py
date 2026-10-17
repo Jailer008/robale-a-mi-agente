@@ -83,7 +83,7 @@ def test_capa_semantica_frena_la_parafrasis(tmp_path):
     assert h.probabilidad == pytest.approx(0.91) and "semántica" in h.motivo and "mock" in h.evidencia
 
 
-@pytest.mark.parametrize("n, esperado", [("14", "FRENAR"), ("10", "ESCALAR"), ("07", "FRENAR"), ("12", "ESCALAR")])
+@pytest.mark.parametrize("n, esperado", [("14", "FRENAR"), ("10", "FRENAR"), ("07", "FRENAR"), ("12", "ESCALAR")])
 def test_probabilidad_cero_no_cancela_un_veto(tmp_path, n, esperado):
     assert con_capa(tmp_path, CapaFija(por_defecto=0.0)).decidir(factura(n)).decision == esperado
 

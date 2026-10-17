@@ -2,6 +2,10 @@
 
 PAGAR exige además extracción válida, política ALLOW y cero hallazgos; si la
 severidad saliera 0 sin cumplir las tres, se sube a ESCALAR con el motivo visible.
+
+v2: cada hallazgo lleva un código estable (cerebro.codigos). Orden = severidad descendente y,
+a igual severidad, PRIORIDAD; el primero da `codigo_principal`. `aprobable` es True solo si la
+decisión es ESCALAR, ninguna señal es de severidad 2 y no hay datos dudosos ni fallos técnicos.
 """
 
 from __future__ import annotations
@@ -10,6 +14,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
+from cerebro.codigos import ACCIONES, NO_APROBABLES, clave_orden, normalizar
 from cerebro.contexto import Contexto
 from cerebro.dinero import usd_es
 from cerebro.reglas import Falla
@@ -22,7 +27,10 @@ DECISION: dict[int, DecisionTipo] = {0: "PAGAR", 1: "ESCALAR", 2: "FRENAR"}
 class Resultado:
     decision: DecisionTipo
     severidad: int
-    hallazgos: list[Hallazgo]          # ordenados de mayor a menor severidad (estable)
+    hallazgos: list[Hallazgo]          # severidad descendente; empate por PRIORIDAD (estable)
+    codigo_principal: str = "OK"
+    aprobable: bool = False
+    accion_requerida: str | None = None
 
 
 def agregar(*, extraccion_ok: bool, cedar: str, fallas: Sequence[Falla], hallazgos: Sequence[Hallazgo],
@@ -33,11 +41,17 @@ def agregar(*, extraccion_ok: bool, cedar: str, fallas: Sequence[Falla], hallazg
         faltantes = [texto for falta, texto in ((not extraccion_ok, "extracción no validada"),
                                                 (cedar != "ALLOW", "la política no dio ALLOW"),
                                                 (bool(todos), "hay hallazgos sin resolver")) if falta]
-        todos.append(Hallazgo(agente="agregador", severidad=1,
+        todos.append(Hallazgo(agente="agregador", severidad=1, codigo="ERROR_TECNICO",
                               motivo="No se puede pagar: " + ", ".join(faltantes) + "."))
         severidad = 1
-    ordenados = sorted(todos, key=lambda h: -h.severidad)
-    return Resultado(DECISION[severidad], severidad, ordenados)
+    ordenados = sorted((normalizar(h) for h in todos), key=clave_orden)
+    decision = DECISION[severidad]
+    if decision == "PAGAR":
+        return Resultado(decision, severidad, ordenados)
+    principal = ordenados[0].codigo
+    aprobable = decision == "ESCALAR" and not any(h.codigo in NO_APROBABLES for h in ordenados)
+    accion = None if aprobable else ACCIONES.get(principal)
+    return Resultado(decision, severidad, ordenados, principal, aprobable, accion)
 
 
 def resumen(hallazgos: Sequence[Hallazgo]) -> str:

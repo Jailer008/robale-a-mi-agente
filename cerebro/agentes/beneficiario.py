@@ -29,10 +29,10 @@ def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
         hallazgos.append(Hallazgo(agente=NOMBRE, severidad=1, campo="texto_libre",
                                   motivo="El mensaje pide cambiar los datos de pago; requiere verificación "
                                          "por otro canal.",
-                                  evidencia=f"«{coincidencia.group(0)}»"))
+                                  evidencia=f"«{coincidencia.group(0)}»", codigo="CUENTA_NO_REGISTRADA"))
     registrado = ctx.proveedor
     if registrado and factura.id_fiscal and clave(factura.id_fiscal) != clave(registrado.get("id_fiscal")):
         hallazgos.append(Hallazgo(agente=NOMBRE, severidad=1, campo="id_fiscal",
                                   motivo=f"El ID fiscal {factura.id_fiscal} no coincide con el registrado de "
-                                         f"{registrado['nombre']}."))
+                                         f"{registrado['nombre']}.", codigo="PROVEEDOR_NO_PERMITIDO"))
     return hallazgos

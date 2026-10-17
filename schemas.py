@@ -45,6 +45,7 @@ class Hallazgo(BaseModel):
     evidencia: str = ""
     campo: str | None = None
     latencia_ms: int = 0
+    codigo: str = ""                               # v2: código estable (cerebro/codigos.py)
 
 
 class Decision(BaseModel):
@@ -68,3 +69,6 @@ class Decision(BaseModel):
     ts: datetime
     hash_prev: str
     hash: str
+    codigo_principal: str = "OK"                   # v2: código del motivo de mayor severidad
+    aprobable: bool = False                        # v2: True solo si ESCALAR sin FRENAR ni datos dudosos
+    accion_requerida: str | None = None            # v2: qué hacer cuando no es aprobable

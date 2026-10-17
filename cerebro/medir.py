@@ -1,4 +1,7 @@
-"""Medición del cerebro contra datos/ground_truth.csv → resultados.json (contrato estable para Dev 3).
+"""Medición del cerebro contra el ground truth v2 → resultados.json (contrato estable para Dev 3).
+
+Por defecto compara con cerebro/ground_truth_v2.csv (matriz v2 del aviso: 09 y 10 FRENAR). El v1 de
+Dev 1 (datos/ground_truth.csv) sigue disponible con --ground-truth v1 mientras se coordina su cambio.
 
     uv run python -m cerebro.medir                       # MOCK: JSON canónicos, sin extracción
     uv run python -m cerebro.medir --modo cache          # CACHÉ: originales → extraer() solo desde cache/
@@ -32,6 +35,10 @@ from schemas import FacturaCanonica
 
 VERSION_CONTRATO = "1.0"
 ETIQUETAS = ["PAGAR", "ESCALAR", "FRENAR"]
+GROUND_TRUTH = {
+    "v2": lambda raiz: raiz / "cerebro" / "ground_truth_v2.csv",
+    "v1": lambda raiz: raiz / "datos" / "ground_truth.csv",
+}
 Modo = Literal["MOCK", "CACHÉ", "LIVE"]
 _ALIAS: dict[str, Modo] = {"mock": "MOCK", "cache": "CACHÉ", "caché": "CACHÉ", "live": "LIVE"}
 DESCRIPCION = {
@@ -89,6 +96,7 @@ class Resumen(BaseModel):
     pendientes_humano: int
     jurado_aciertos: int
     jurado_total: int
+    codigos_aciertos: int | None = None       # v2: código principal igual al esperado
 
 
 class FacturaMedida(BaseModel):
@@ -107,6 +115,9 @@ class FacturaMedida(BaseModel):
     fuente: Literal["json", "cache", "cache_miss", "live"]
     factura_id: str
     latencia_ms: dict[str, int]
+    codigo_principal: str = "OK"
+    codigo_esperado: str | None = None
+    aprobable: bool = False
 
 
 class Resultados(BaseModel):
@@ -118,6 +129,7 @@ class Resultados(BaseModel):
     capa_semantica_nombre: str | None = None
     ref_date: date
     version_reglas: str
+    ground_truth: str = "v2"
     resumen: Resumen
     matriz: Matriz
     latencia: dict[str, LatenciaEtapa]
@@ -191,7 +203,9 @@ def _costo(modo: Modo, capa: Any) -> Costo:
 
 
 def medir(modo: str = "MOCK", *, directorio: Path | None = None, raiz: Path = RAIZ, confirmar_costo: bool = False,
-          capa: Any = None) -> Resultados:
+          capa: Any = None, ground_truth: str = "v2") -> Resultados:
+    if ground_truth not in GROUND_TRUTH:
+        raise ValueError(f"ground_truth desconocido: {ground_truth!r} (v2 o v1)")
     modo_norm = _modo(modo)
     if capa is not None and getattr(capa, "modo", "") == "live" and not confirmar_costo:
         raise PermissionError("La capa semántica en vivo (Jev) consume créditos: confirme con --confirmar-costo")
@@ -206,7 +220,8 @@ def medir(modo: str = "MOCK", *, directorio: Path | None = None, raiz: Path = RA
     cerebro = Cerebro(db_path=directorio / "medicion.db", datos=raiz / "datos", reglas_path=raiz / "reglas.yaml",
                       firmante=firmante, capa=capa)
 
-    with (raiz / "datos" / "ground_truth.csv").open(encoding="utf-8", newline="") as archivo_gt:
+    archivo_esperado = GROUND_TRUTH[ground_truth](raiz)
+    with archivo_esperado.open(encoding="utf-8", newline="") as archivo_gt:
         filas = sorted(csv.DictReader(archivo_gt), key=lambda f: Path(f["archivo"]).name)
 
     facturas: list[FacturaMedida] = []
@@ -239,6 +254,8 @@ def medir(modo: str = "MOCK", *, directorio: Path | None = None, raiz: Path = RA
             autonoma=correcto and decision.estado == "final" and decision.aprobador is None,
             estado=decision.estado, explicacion=decision.explicacion, contrafactual=decision.contrafactual,
             responsable=responsable(decision), fuente=fuente, factura_id=decision.factura_id, latencia_ms=traza,
+            codigo_principal=decision.codigo_principal, codigo_esperado=fila.get("codigo_esperado") or None,
+            aprobable=decision.aprobable,
         ))
 
     matriz = {e: dict.fromkeys(ETIQUETAS, 0) for e in ETIQUETAS}
@@ -254,12 +271,14 @@ def medir(modo: str = "MOCK", *, directorio: Path | None = None, raiz: Path = RA
         version_contrato=VERSION_CONTRATO, generado=datetime.now(UTC), modo=modo_norm,
         descripcion_modo=DESCRIPCION[modo_norm], capa_semantica=cerebro.modo_semantico,
         capa_semantica_nombre=getattr(capa, "nombre", None), ref_date=cerebro.ref_date,
-        version_reglas=cerebro.reglas.version,
+        version_reglas=cerebro.reglas.version, ground_truth=ground_truth,
         resumen=Resumen(total=total, aciertos=aciertos, exactitud=round(aciertos / total, 4) if total else 0.0,
                         falsos_pagar=sum(f.falso_pagar for f in facturas), autonomas=autonomas,
                         autonomia=round(autonomas / total, 4) if total else 0.0,
                         pendientes_humano=sum(f.estado == "pendiente_humano" for f in facturas),
-                        jurado_aciertos=sum(f.correcto for f in jurado), jurado_total=len(jurado)),
+                        jurado_aciertos=sum(f.correcto for f in jurado), jurado_total=len(jurado),
+                        codigos_aciertos=sum(f.codigo_principal == f.codigo_esperado for f in facturas)
+                        if all(f.codigo_esperado for f in facturas) else None),
         matriz=Matriz(etiquetas=ETIQUETAS, filas=matriz),
         latencia=_latencias(trazas),
         costo=_costo(modo_norm, capa),
@@ -291,6 +310,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--salida", default="resultados.json", help="ruta del resultados.json")
     parser.add_argument("--confirmar-costo", action="store_true",
                         help="requerido para --modo live y para --semantica jev")
+    parser.add_argument("--ground-truth", default="v2", choices=sorted(GROUND_TRUTH),
+                        help="v2 (por defecto, matriz del aviso) o v1 (datos/ground_truth.csv de Dev 1)")
     parser.add_argument("--semantica", default="ninguna", choices=["ninguna", "jev"],
                         help="capa semántica: ninguna (determinista) o jev (typesafe/jev-1.13 vía OpenRouter)")
     args = parser.parse_args(argv)
@@ -307,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.confirmar_costo:
             print("--semantica jev consume créditos de OpenRouter: agregue --confirmar-costo para ejecutarlo.")
             return 2
-    resultados = medir(args.modo, confirmar_costo=args.confirmar_costo, capa=capa)
+    resultados = medir(args.modo, confirmar_costo=args.confirmar_costo, capa=capa, ground_truth=args.ground_truth)
     Path(args.salida).write_bytes(resultados.model_dump_json(indent=2).encode("utf-8") + b"\n")  # LF siempre
     _imprimir(resultados)
     print(f"Escrito {args.salida}")

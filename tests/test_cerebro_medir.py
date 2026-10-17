@@ -19,16 +19,17 @@ def test_mock_15_de_15_sin_falsos_pagar(mock):
     r = mock.resumen
     assert (r.total, r.aciertos, r.falsos_pagar) == (15, 15, 0)
     assert r.exactitud == 1.0
-    assert r.autonomas == 9 and r.autonomia == pytest.approx(0.6)      # 6 PAGAR + 3 FRENAR sin humano
-    assert r.pendientes_humano == 6
+    assert r.autonomas == 11 and r.autonomia == pytest.approx(11 / 15, abs=1e-4)   # v2: 6 PAGAR + 5 FRENAR sin humano
+    assert r.pendientes_humano == 4
+    assert r.codigos_aciertos == 15
     assert (r.jurado_aciertos, r.jurado_total) == (6, 6)
 
 
 def test_matriz_de_confusion(mock):
     assert mock.matriz.etiquetas == ["PAGAR", "ESCALAR", "FRENAR"]
     assert mock.matriz.filas == {"PAGAR": {"PAGAR": 6, "ESCALAR": 0, "FRENAR": 0},
-                                 "ESCALAR": {"PAGAR": 0, "ESCALAR": 6, "FRENAR": 0},
-                                 "FRENAR": {"PAGAR": 0, "ESCALAR": 0, "FRENAR": 3}}
+                                 "ESCALAR": {"PAGAR": 0, "ESCALAR": 4, "FRENAR": 0},
+                                 "FRENAR": {"PAGAR": 0, "ESCALAR": 0, "FRENAR": 5}}
 
 
 def test_autonomia_por_factura(mock):

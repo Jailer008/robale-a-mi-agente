@@ -12,9 +12,10 @@ from schemas import FacturaCanonica
 
 REF = date(2026, 10, 17)
 ORDEN = [f"{n:02d}" for n in range(1, 16)]
+# Matriz v2 (AVISO_DEV2_cambios.md): 09 y 10 pasan de ESCALAR a FRENAR. Ver cerebro/ground_truth_v2.csv.
 ESPERADO = {
     "01": "PAGAR", "02": "PAGAR", "03": "PAGAR", "04": "PAGAR", "05": "PAGAR", "06": "PAGAR",
-    "07": "FRENAR", "08": "ESCALAR", "09": "ESCALAR", "10": "ESCALAR", "11": "ESCALAR",
+    "07": "FRENAR", "08": "ESCALAR", "09": "FRENAR", "10": "FRENAR", "11": "ESCALAR",
     "12": "ESCALAR", "13": "FRENAR", "14": "FRENAR", "15": "ESCALAR",
 }
 

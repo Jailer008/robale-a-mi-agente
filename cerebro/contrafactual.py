@@ -17,6 +17,8 @@ from cerebro.tipos import tipo_de
 from schemas import Hallazgo
 
 DINERO = frozenset({"limite_pago", "tope_duro", "mensual_proveedor", "mensual_global", "saldo"})
+# v2: FRENAR por identidad del beneficiario, pero con una condición verificable (alta / cuenta verificada).
+CON_CONDICION = frozenset({"cuenta", "beneficiario_no_permitido"})
 _POR_AGENTE = {
     "duplicados": "no existiera un pago previo parecido",
     "contrato": "las líneas cuadraran con el contrato",
@@ -61,7 +63,7 @@ def _por_hallazgo(h: Hallazgo) -> str:
 def contrafactual(ctx: Contexto, fallas: Sequence[Falla], hallazgos: Sequence[Hallazgo]) -> str | None:
     if not fallas and not hallazgos:
         return None
-    sin_frontera = [f.motivo for f in fallas if f.severidad == 2 and f.regla not in DINERO]
+    sin_frontera = [f.motivo for f in fallas if f.severidad == 2 and f.regla not in DINERO | CON_CONDICION]
     sin_frontera += [h.motivo for h in hallazgos if h.severidad == 2]
     if sin_frontera:
         return f"Sin contrafactual: {sin_frontera[0]} No se corrige cambiando un valor."

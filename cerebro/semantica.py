@@ -276,7 +276,7 @@ async def seguridad(factura: FacturaCanonica, ctx: Contexto, capa: CapaSemantica
     return [Hallazgo(agente="seguridad", severidad=2, probabilidad=p, campo="texto_libre",
                      motivo=f"La capa semántica estima p={p:.2f} de instrucciones dirigidas al sistema; las "
                             "instrucciones dentro de documentos no tienen autoridad.",
-                     evidencia=_evidencia(capa, texto[:200]))]
+                     evidencia=_evidencia(capa, texto[:200]), codigo="INYECCION")]
 
 
 async def beneficiario(factura: FacturaCanonica, ctx: Contexto, capa: CapaSemantica) -> list[Hallazgo]:
@@ -288,7 +288,7 @@ async def beneficiario(factura: FacturaCanonica, ctx: Contexto, capa: CapaSemant
     return [Hallazgo(agente="beneficiario", severidad=1, probabilidad=p, campo="texto_libre",
                      motivo=f"La capa semántica estima p={p:.2f} de que el mensaje pida cambiar los datos de pago; "
                             "verificar por otro canal.",
-                     evidencia=_evidencia(capa, factura.texto_libre[:200]))]
+                     evidencia=_evidencia(capa, factura.texto_libre[:200]), codigo="CUENTA_NO_REGISTRADA")]
 
 
 def _distancia(a: str, b: str) -> int:
@@ -337,7 +337,7 @@ async def duplicados(factura: FacturaCanonica, ctx: Contexto, capa: CapaSemantic
                 agente="duplicados", severidad=1, probabilidad=p, campo="numero_factura",
                 motivo=f"La capa semántica estima p={p:.2f} de que sea el mismo cobro que {pago.numero_factura} "
                        f"(pagado el {pago.fecha_pago.isoformat()}); se escala.",
-                evidencia=_evidencia(capa, f"pago={pago.factura_id}")))
+                evidencia=_evidencia(capa, f"pago={pago.factura_id}"), codigo="DUPLICADO_DIFUSO"))
     return hallazgos
 
 
@@ -366,7 +366,7 @@ async def contrato(factura: FacturaCanonica, ctx: Contexto, capa: CapaSemantica)
                       f"(p={p:.2f}; precio {numero_es(a_decimal(linea.precio_unitario))} vs {numero_es(pactado)} "
                       f"pactado); sigue sin casar exactamente con el contrato {ctx.contrato['id']}.")
         hallazgos.append(Hallazgo(agente="contrato", severidad=1, probabilidad=p, campo="lineas", motivo=motivo,
-                                  evidencia=_evidencia(capa, f"opciones={len(opciones)}")))
+                                  evidencia=_evidencia(capa, f"opciones={len(opciones)}"), codigo="CONTRATO"))
     return hallazgos
 
 

@@ -17,7 +17,7 @@ NOMBRE = "contrato"
 
 
 def _h(motivo: str, campo: str = "lineas") -> Hallazgo:
-    return Hallazgo(agente=NOMBRE, severidad=1, motivo=motivo, campo=campo)
+    return Hallazgo(agente=NOMBRE, severidad=1, motivo=motivo, campo=campo, codigo="CONTRATO")
 
 
 def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:

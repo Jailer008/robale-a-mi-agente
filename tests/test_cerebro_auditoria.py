@@ -211,7 +211,7 @@ def test_aprobar_no_silencia_una_inyeccion_detectada_al_revalidar(tmp_path):
 
 def test_rechazo_queda_registrado_sin_borrar_la_evidencia(tmp_path):
     c = nueva_cerebro(tmp_path)
-    pendiente = c.decidir(factura("10"))
+    pendiente = c.decidir(factura("11"))          # v2: la 10 ya es FRENAR no aprobable
     rechazo = c.reanudar(pendiente.factura_id, False, "jurado-2")
     p = c.paquete_evidencia(pendiente.factura_id)
     assert [x["decision"]["hash"] for x in p["decisiones"]] == [pendiente.hash, rechazo.hash]

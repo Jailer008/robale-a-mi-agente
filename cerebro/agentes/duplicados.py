@@ -38,11 +38,12 @@ def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
         if numero and clave_numero(pago.numero_factura) == numero:
             if mismo_monto:
                 hallazgos.append(Hallazgo(agente=NOMBRE, severidad=2, campo="numero_factura",
-                                          motivo=f"Duplicado exacto: {previo}.", evidencia=f"pago={pago.factura_id}"))
+                                          motivo=f"Duplicado exacto: {previo}.", evidencia=f"pago={pago.factura_id}",
+                                          codigo="DUPLICADO_EXACTO"))
             else:
                 hallazgos.append(Hallazgo(agente=NOMBRE, severidad=1, campo="numero_factura",
                                           motivo=f"El número {factura.numero_factura} ya se usó: {previo}.",
-                                          evidencia=f"pago={pago.factura_id}"))
+                                          evidencia=f"pago={pago.factura_id}", codigo="DUPLICADO_DIFUSO"))
             continue
         if pago.moneda != moneda or monto_previo <= 0:
             continue
@@ -54,6 +55,6 @@ def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
                 motivo=f"Posible duplicado disfrazado de {pago.numero_factura}: otro número, mismo proveedor, "
                        f"monto {monto_es(ctx.monto_original, moneda)} vs {monto_es(monto_previo, pago.moneda)} "
                        f"y {dias} día{'' if dias == 1 else 's'} de diferencia.",
-                evidencia=f"pago={pago.factura_id}",
+                evidencia=f"pago={pago.factura_id}", codigo="DUPLICADO_DIFUSO",
             ))
     return hallazgos

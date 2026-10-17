@@ -72,6 +72,9 @@ Ambas vienen de `schemas.py`, que no se modifica.
 | `aprobador`, `aprobado` | Autoridad humana en una resolución de `reanudar` |
 | `ts` | UTC |
 | `hash_prev`, `hash` | Cadena SHA-256 |
+| `codigo_principal` | v2. Código estable del motivo principal (`OK` en PAGAR). **La pantalla grande muestra solo este código**, nunca texto de la factura |
+| `aprobable` | v2. `True` solo si la decisión es ESCALAR, sin señales de severidad 2 y sin `EXTRACCION` ni `ERROR_TECNICO`. Es informativo: `reanudar` lo **recalcula** en el servidor |
+| `accion_requerida` | v2. Qué hacer cuando no es aprobable (por ejemplo, verificar por teléfono), o `None` |
 
 **`Hallazgo`**
 
@@ -84,6 +87,7 @@ Ambas vienen de `schemas.py`, que no se modifica.
 | `evidencia` | Su prefijo indica el tipo de hallazgo (ver abajo) |
 | `campo` | Campo de la factura implicado |
 | `latencia_ms` | Tiempo del agente |
+| `codigo` | v2. Código estable del hallazgo (ver sección 11) |
 
 Tipos de hallazgo, según el prefijo de `evidencia` (`cerebro.tipos.tipo_de(h)`):
 
@@ -140,6 +144,7 @@ Escribe `resultados.json`; con `--salida` se cambia la ruta. El código de salid
 | `capa_semantica_nombre` | Por ejemplo `jev:typesafe/jev-1.13`; `null` si no hay capa |
 | `ref_date` | Fecha de referencia usada |
 | `version_reglas` | SHA-256 de `reglas.yaml` |
+| `ground_truth` | `v2` (por defecto, `cerebro/ground_truth_v2.csv`) o `v1` (`datos/ground_truth.csv` de Dev 1) |
 | `resumen` | `total`, `aciertos`, `exactitud`, `falsos_pagar`, `autonomas`, `autonomia`, `pendientes_humano`, `jurado_aciertos`, `jurado_total` |
 | `matriz` | `etiquetas` y `filas[esperado][obtenido]` (matriz 3×3) |
 | `latencia` | Por etapa (`extraccion_ms`, `agentes_ms`, `agente.<nombre>_ms`, `revalidacion_ms`, `total_ms`), cada una con `n`, `promedio_ms`, `p50_ms`, `max_ms` |

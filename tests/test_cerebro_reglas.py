@@ -77,10 +77,10 @@ def test_saldo_insuficiente_frena(cerebro):
     assert ids(ev) == {"saldo"} and ev.fallas[0].severidad == 2
 
 
-def test_proveedor_nuevo_escala(cerebro):
+def test_proveedor_nuevo_frena_v2(cerebro):
     ev = evaluar(cerebro.contexto(factura("09")))
     assert ids(ev) == {"beneficiario_no_permitido"}
-    assert ev.fallas[0].severidad == 1
+    assert ev.fallas[0].severidad == 2 and ev.fallas[0].codigo == "PROVEEDOR_NO_PERMITIDO"
     assert ev.fallas[0].motivo == "'Delta Devs' no está en la lista aprobada."
 
 
@@ -90,16 +90,16 @@ def test_proveedor_bloqueado_frena(cerebro):
     assert max(f.severidad for f in ev.fallas) == 2
 
 
-def test_cuenta_alterada_escala(cerebro):
+def test_cuenta_alterada_frena_v2(cerebro):
     ev = evaluar(cerebro.contexto(factura("10")))
     assert ids(ev) == {"cuenta"}
-    assert ev.fallas[0].severidad == 1
+    assert ev.fallas[0].severidad == 2 and ev.fallas[0].codigo == "CUENTA_NO_REGISTRADA"
     assert ev.fallas[0].motivo == "Cuenta termina en 7781; la registrada termina en 0423."
 
 
-def test_cuenta_ausente_escala(cerebro):
+def test_cuenta_ausente_frena_v2(cerebro):
     ev = evaluar(cerebro.contexto(variante("01", cuenta_bancaria=None)))
-    assert ids(ev) == {"cuenta"} and ev.fallas[0].severidad == 1
+    assert ids(ev) == {"cuenta"} and ev.fallas[0].severidad == 2
 
 
 def test_extraccion_no_validada_escala_con_sus_diferencias(cerebro):

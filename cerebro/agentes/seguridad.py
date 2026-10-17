@@ -68,12 +68,12 @@ def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
         hallazgos.append(Hallazgo(agente=NOMBRE, severidad=2, campo="texto_oculto",
                                   motivo=f"Texto oculto encontrado: '{revelado[:160]}'. Las instrucciones dentro de "
                                          "documentos no tienen autoridad.",
-                                  evidencia=revelado))
+                                  evidencia=f"oculto={revelado}", codigo="TEXTO_OCULTO"))
     for campo, texto in _textos(factura):
         coincidencia = _primera_coincidencia(texto)
         if coincidencia:
             hallazgos.append(Hallazgo(agente=NOMBRE, severidad=2, campo=campo,
                                       motivo=f"Instrucciones dirigidas al sistema en {campo}: "
                                              f"«{coincidencia.group(0)[:80]}». Se ignoran y se frena el pago.",
-                                      evidencia=texto[:300]))
+                                      evidencia=f"texto={texto[:300]}", codigo="INYECCION"))
     return hallazgos

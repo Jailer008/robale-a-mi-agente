@@ -36,6 +36,7 @@ from cerebro.agentes import AGENTES, Agente, AgenteSemantico, Evento, ejecutar_a
 from cerebro.agentes import duplicados as agente_duplicados
 from cerebro.agregador import Resultado, agregar, explicar, resumen
 from cerebro.asincronia import correr_sync
+from cerebro.codigos import ACCIONES
 from cerebro.config import RAIZ, Reglas, cargar_reglas, ref_date_configurada
 from cerebro.contexto import Catalogo, Contexto, construir_contexto
 from cerebro.contrafactual import contrafactual
@@ -49,17 +50,27 @@ from cerebro.tipos import causa, fallo, tipo_de
 from schemas import Decision, FacturaCanonica, Hallazgo
 
 __all__ = [
-    "CadenaAlterada", "Cerebro", "ReevaluacionNecesaria", "decidir", "decidir_async", "paquete_evidencia",
-    "reanudar", "simular_politica", "verificar_cadena",
+    "CadenaAlterada", "Cerebro", "NoAprobable", "ReevaluacionNecesaria", "decidir", "decidir_async",
+    "paquete_evidencia", "reanudar", "simular_politica", "verificar_cadena",
 ]
 
 log = logging.getLogger(__name__)
-NO_APROBABLES = frozenset({"extraccion", "datos", "fx"})   # sin monto validado no hay excepción posible
+REGLAS_DE_ENTRADA = frozenset({"extraccion", "datos", "fx"})   # sin monto validado no hay excepción posible
 _MAX_CLAVE_IDEMPOTENCIA = 200
 
 
 class CadenaAlterada(RuntimeError):
     """El registro fue manipulado: no se aprueba nada hasta revisarlo."""
+
+
+class NoAprobable(ValueError):
+    """La decisión no admite aprobación humana (FRENAR: cuenta no registrada, proveedor no permitido,
+    duplicado exacto, inyección, tope duro…). Lleva el código y la acción requerida."""
+
+    def __init__(self, mensaje: str, codigo: str = "OK", accion_requerida: str | None = None) -> None:
+        super().__init__(mensaje)
+        self.codigo = codigo
+        self.accion_requerida = accion_requerida
 
 
 class ReevaluacionNecesaria(RuntimeError):
@@ -91,9 +102,9 @@ def decision_de_emergencia(factura: FacturaCanonica, error: BaseException, versi
     hallazgos = [fallo("sistema", f"Error técnico al decidir ({causa(error)}); se escala por seguridad.",
                        causa(error))]
     if factura.texto_oculto:
-        hallazgos.insert(0, Hallazgo(agente="seguridad", severidad=2, campo="texto_oculto",
+        hallazgos.insert(0, Hallazgo(agente="seguridad", severidad=2, campo="texto_oculto", codigo="TEXTO_OCULTO",
                                      motivo=f"Texto oculto encontrado: '{' | '.join(factura.texto_oculto)[:160]}'.",
-                                     evidencia=" | ".join(factura.texto_oculto)))
+                                     evidencia="oculto=" + " | ".join(factura.texto_oculto)))
     frenar = hallazgos[0].severidad == 2
     return Decision(
         factura_id=_factura_id(factura), numero_factura=factura.numero_factura, proveedor=factura.proveedor,
@@ -101,6 +112,8 @@ def decision_de_emergencia(factura: FacturaCanonica, error: BaseException, versi
         explicacion=resumen(hallazgos), contrafactual=None, hallazgos=hallazgos, cedar="DENY",
         monto_original=_finito(factura.total), moneda=factura.moneda, monto_usd=0.0, fx_rate=0.0,
         fx_source="no evaluado", version_reglas=version_reglas, ts=datetime.now(UTC), hash_prev="", hash="",
+        codigo_principal=hallazgos[0].codigo, aprobable=False,
+        accion_requerida=None if frenar else ACCIONES["ERROR_TECNICO"],
     )
 
 
@@ -255,6 +268,8 @@ class Cerebro:
             fx_rate=float(fx.unidades_por_usd) if fx else 0.0,
             fx_source=f"{fx.fuente} · {fx.fecha}" if fx else "sin tasa FX confiable",
             version_reglas=ctx.reglas.version, ts=datetime.now(UTC), hash_prev="", hash="",
+            codigo_principal=resultado.codigo_principal, aprobable=resultado.aprobable,
+            accion_requerida=resultado.accion_requerida,
         )
         campos.update(extra)
         return Decision(**campos)
@@ -329,9 +344,13 @@ class Cerebro:
                            " WHERE factura_id = ? ORDER BY id DESC LIMIT 1", (factura_id,)).fetchone()
         if fila is None:
             raise LookupError(f"No hay decisiones para {factura_id}")
+        decision = Decision.model_validate_json(fila[3])
+        if fila[1] == "FRENAR" and decision.aprobador is None:
+            raise NoAprobable(f"La factura {factura_id} quedó en FRENAR ({decision.codigo_principal}): no admite "
+                              "aprobación humana", decision.codigo_principal, decision.accion_requerida)
         if fila[1] != "ESCALAR" or fila[2] != "pendiente_humano":
             raise ValueError(f"La factura {factura_id} no está pendiente de aprobación ({fila[1]}, {fila[2]})")
-        return int(fila[0]), Decision.model_validate_json(fila[3]), fila[4]
+        return int(fila[0]), decision, fila[4]
 
     def _verificar_o_fallar(self, con) -> None:
         integra, fila_rota = _verificar_cadena(con, self.firmante)
@@ -379,7 +398,8 @@ class Cerebro:
             if self._pendiente(con, factura_id)[0] != fila_pendiente:
                 raise ValueError(f"La factura {factura_id} ya fue resuelta por otra solicitud")
             humano = {"aprobador": aprobador, "aprobado": aprobado, "estado": "final", "ts": datetime.now(UTC),
-                      "hash_prev": "", "hash": "", "contrafactual": None}
+                      "hash_prev": "", "hash": "", "contrafactual": None, "aprobable": False,
+                      "accion_requerida": None}
 
             def registrar(decision: Decision) -> Decision:
                 return sellar(con, decision, factura_json, self.firmante, clave_idempotencia)[0]
@@ -396,10 +416,11 @@ class Cerebro:
             todos = _unir(hallazgos, revalidados)
             resultado = agregar(extraccion_ok=ctx.extraccion_ok, cedar=evaluacion.cedar, fallas=evaluacion.fallas,
                                 hallazgos=todos, fallos=fallos)
+            # La autorización se RECALCULA aquí, en el servidor; nunca se confía en un `aprobable` externo.
             vetos = [h for h in resultado.hallazgos if h.severidad == 2]
-            entrada = [f.como_hallazgo() for f in evaluacion.fallas if f.regla in NO_APROBABLES]
-            entrada += [h for h in resultado.hallazgos if tipo_de(h) == "sin_evidencia"]
-            tecnicos = [h for h in resultado.hallazgos if tipo_de(h) == "fallo_tecnico"]
+            entrada = [f.como_hallazgo() for f in evaluacion.fallas if f.regla in REGLAS_DE_ENTRADA]
+            entrada += [h for h in resultado.hallazgos if h.codigo == "EXTRACCION" or tipo_de(h) == "sin_evidencia"]
+            tecnicos = [h for h in resultado.hallazgos if h.codigo == "ERROR_TECNICO" or tipo_de(h) == "fallo_tecnico"]
             if vetos:
                 return registrar(self._armar(factura, ctx, resultado, evaluacion.cedar,
                                              f"No se puede aprobar: {resumen(vetos)}", None,
@@ -409,7 +430,8 @@ class Cerebro:
                                              f"No se puede aprobar: {resumen(entrada)} Corrija la entrada y vuelva "
                                              "a enviarla.", None,
                                              decision="FRENAR", version_reglas=reglas.version, **humano))
-            if tecnicos:
+            if tecnicos or not resultado.aprobable:
+                tecnicos = tecnicos or resultado.hallazgos
                 raise ReevaluacionNecesaria(f"No se aprueba todavía: {resumen(tecnicos)} La factura sigue pendiente.")
 
             escalado = resultado.hallazgos[0].motivo if resultado.hallazgos else "sin motivo pendiente"

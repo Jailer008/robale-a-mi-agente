@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 from cerebro_util import ESPERADO, ORDEN, factura, nueva_cerebro, variante
-from conftest import DATOS, RAIZ
+from conftest import RAIZ
 
 import cerebro
 from cerebro.agregador import agregar
@@ -44,7 +44,7 @@ def nubia_4800(numero: str):
 # ---------- las 15 del set, en orden ----------
 
 def test_quince_en_orden_coinciden_con_ground_truth(c):
-    with (DATOS / "ground_truth.csv").open(encoding="utf-8", newline="") as f:
+    with (RAIZ / "cerebro" / "ground_truth_v2.csv").open(encoding="utf-8", newline="") as f:   # matriz v2
         gt = {Path(r["archivo"]).name[:2]: r["decision_esperada"] for r in csv.DictReader(f)}
     decisiones = {n: c.decidir(factura(n)) for n in ORDEN}
     obtenido = {n: d.decision for n, d in decisiones.items()}
@@ -125,9 +125,9 @@ def test_inyeccion_en_texto_libre_nunca_paga(c, texto):
     assert d.decision == "FRENAR"
 
 
-def test_cuenta_alterada_escala(c):
+def test_cuenta_alterada_frena_v2(c):
     d = c.decidir(variante("01", cuenta_bancaria="CO-BANCO-9999"))
-    assert d.decision == "ESCALAR" and "termina en 9999" in d.explicacion
+    assert d.decision == "FRENAR" and "termina en 9999" in d.explicacion and d.aprobable is False
 
 
 def test_limite_mensual_del_proveedor_frena(c):
@@ -329,7 +329,7 @@ def test_aprobar_la_12_paga_simulado_con_aprobador(c):
 
 
 def test_rechazar_queda_frenar_firmado_por_humano(c):
-    pendiente = c.decidir(factura("09"))
+    pendiente = c.decidir(factura("11"))          # v2: la 09 ya es FRENAR; se usa un ESCALAR aprobable
     d = c.reanudar(pendiente.factura_id, False, "jurado-2")
     assert d.decision == "FRENAR" and d.aprobado is False and d.aprobador == "jurado-2"
     assert pagos_simulados(c) == 0

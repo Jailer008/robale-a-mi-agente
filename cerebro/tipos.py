@@ -32,9 +32,10 @@ def causa(error: BaseException) -> str:
 
 
 def fallo(agente: str, motivo: str, detalle: str = "") -> Hallazgo:
-    return Hallazgo(agente=agente, severidad=1, motivo=motivo, evidencia=f"{FALLO_TECNICO} {detalle}".strip())
+    return Hallazgo(agente=agente, severidad=1, motivo=motivo, evidencia=f"{FALLO_TECNICO} {detalle}".strip(),
+                    codigo="ERROR_TECNICO")
 
 
 def sin_evidencia(agente: str, motivo: str, campo: str | None = None, detalle: str = "") -> Hallazgo:
     return Hallazgo(agente=agente, severidad=1, motivo=motivo, campo=campo,
-                    evidencia=f"{SIN_EVIDENCIA} {detalle}".strip())
+                    evidencia=f"{SIN_EVIDENCIA} {detalle}".strip(), codigo="EXTRACCION")
