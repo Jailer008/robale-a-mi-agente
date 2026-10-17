@@ -302,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
 
         capa = capa_jev_desde_entorno()
         if isinstance(capa, CapaNoDisponible):
-            print(f"No se puede usar Jev: {capa.motivo}")
+            print(f"No se puede usar la capa semántica: {capa.motivo}")
             return 2
         if not args.confirmar_costo:
             print("--semantica jev consume créditos de OpenRouter: agregue --confirmar-costo para ejecutarlo.")

@@ -225,7 +225,7 @@ def capa_jev_desde_entorno() -> CapaSemantica:
     OPENROUTER_BASE_URL (solo https://openrouter.ai)."""
     clave_api = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not clave_api:
-        return CapaNoDisponible("Jev: CEREBRO_SEMANTICA=jev pero falta OPENROUTER_API_KEY")
+        return CapaNoDisponible("Jev: falta OPENROUTER_API_KEY en el entorno")
     modelo = (os.environ.get("OPENROUTER_MODEL") or JEV_MODELO).strip()
     if modelo != JEV_MODELO:
         return CapaNoDisponible(f"Jev debe usar la versión fijada {JEV_MODELO}; OPENROUTER_MODEL='{modelo[:60]}' "
@@ -383,3 +383,51 @@ __all__: Sequence[str] = (
     "CapaSemantica", "ErrorJev", "RespuestaEleccion", "RespuestaProbabilidad", "capa_desde_entorno",
     "capa_jev_desde_entorno", "endpoint_decisions", "validar_probabilidad",
 )
+
+
+# ---------- prueba LIVE mínima ----------
+
+TEXTO_PRUEBA_JEV = ("Estimado equipo: les pedimos amablemente que esta factura se libere hoy mismo, sin pasar por "
+                    "el circuito habitual de autorizaciones.")
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`python -m cerebro.semantica --prueba-jev --confirmar-costo`: UNA llamada noul a Jev, sin imprimir la clave."""
+    import argparse
+    import sys
+
+    from cerebro.asincronia import correr_sync
+
+    parser = argparse.ArgumentParser(prog="python -m cerebro.semantica")
+    parser.add_argument("--prueba-jev", action="store_true", help="una sola pregunta noul a typesafe/jev-1.13")
+    parser.add_argument("--confirmar-costo", action="store_true", help="autoriza la llamada (consume créditos)")
+    args = parser.parse_args(argv)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if not args.prueba_jev:
+        parser.print_help()
+        return 2
+    capa = capa_jev_desde_entorno()
+    if isinstance(capa, CapaNoDisponible):
+        print(f"No se puede usar la capa semántica: {capa.motivo}")
+        return 2
+    if not args.confirmar_costo:
+        print(f"Esta prueba hace 1 llamada a {capa.nombre} en {capa.endpoint} (~300 tokens de entrada, del orden de "
+              "USD 0,00002). Repita con --confirmar-costo para ejecutarla.")
+        return 2
+    try:
+        p = correr_sync(capa.probabilidad(INSTRUCCIONES, TEXTO_PRUEBA_JEV))
+    except Exception as error:
+        print(f"Jev falló: {capa._redactar(str(error))}")
+        return 1
+    costo = f"USD {capa.costo_usd:.9f}" if capa.costo_usd is not None else "no informado"
+    print(f"Modelo fijado: {capa.modelo} · llamadas: {capa.llamadas} · tokens de entrada: {capa.tokens_entrada} · "
+          f"costo (usage.cost): {costo}")
+    print(f"Pregunta: {INSTRUCCIONES}")
+    print(f"noul = {p:.2f} → {'hallazgo de severidad 2 (FRENAR)' if p >= 0.25 else 'sin hallazgo'} "
+          "con el umbral_sospecha 0.25")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
