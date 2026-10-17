@@ -120,3 +120,46 @@ def test_ejemplo_de_integracion_end_to_end(tmp_path):
 def test_readme_explica_lo_simulado_y_lo_no_validado():
     for frase in ("SIMULAD", "SIN VALIDAR", "MOCK", "CACHÉ", "LIVE", "pendiente_humano"):
         assert frase in README.upper() or frase in README, frase
+
+
+# ---------- contrato v2 (G4) ----------
+
+def test_funciones_v2_y_errores():
+    from cerebro.privacidad import vista_publica
+
+    assert list(inspect.signature(cerebro.reevaluar).parameters) == ["factura_id"]
+    assert list(inspect.signature(cerebro.reiniciar_demo).parameters) == ["admin", "timeout_s"]
+    assert "aprobable" not in inspect.signature(cerebro.reanudar).parameters      # nunca viene del frontend
+    assert issubclass(cerebro.NoAprobable, ValueError) and issubclass(cerebro.ReinicioOcupado, RuntimeError)
+    for nombre in ("reevaluar", "reiniciar_demo", "NoAprobable", "ReinicioOcupado", "vista_publica"):
+        assert nombre in README, nombre
+    assert callable(vista_publica)
+
+
+def test_codigos_y_campos_publicos_documentados():
+    from cerebro.codigos import ACCIONES, CODIGOS, PRIORIDAD
+    from cerebro.privacidad import CAMPOS_PUBLICOS
+
+    for codigo in CODIGOS:
+        assert f"`{codigo}`" in README, codigo
+    assert ", ".join(f"`{c}`" for c in PRIORIDAD) in README                       # desempate documentado
+    for campo in CAMPOS_PUBLICOS:
+        assert f"`{campo}`" in README, campo
+    assert ACCIONES["CUENTA_NO_REGISTRADA"] in README and ACCIONES["PROVEEDOR_NO_PERMITIDO"] in README
+
+
+def test_flujo_v2_de_punta_a_punta(tmp_path):
+    from cerebro.privacidad import vista_publica
+
+    c = nueva_cerebro(tmp_path, aprobadores=frozenset({"tg:111"}), administradores=frozenset({"admin:ops"}))
+    robo = c.decidir(factura("10"))
+    vista = vista_publica(robo)
+    assert (vista["decision"], vista["codigo_principal"], vista["aprobable"]) == ("FRENAR", "CUENTA_NO_REGISTRADA",
+                                                                                  False)
+    assert "CO-BANCO-7781" not in str(vista)
+    with pytest.raises(cerebro.NoAprobable):
+        c.reanudar(robo.factura_id, True, "tg:111")
+    alto = c.decidir(factura("12"))
+    assert alto.aprobable and c.reanudar(alto.factura_id, True, "tg:111", clave_idempotencia="cb-1").decision == "PAGAR"
+    resumen = c.reiniciar_demo("admin:ops")
+    assert resumen["decisiones"] == 0 and resumen["pagos_simulados"] == 0 and c.verificar_cadena() == (True, None)

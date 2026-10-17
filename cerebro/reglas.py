@@ -29,10 +29,11 @@ class Falla:
     motivo: str
     campo: str | None = None
     evidencia: str = ""
+    codigo_fijo: str = ""             # cuando la causa cambia el código (p. ej. FX por extracción fallida)
 
     @property
     def codigo(self) -> str:
-        return POR_REGLA.get(self.regla, "ERROR_TECNICO")
+        return self.codigo_fijo or POR_REGLA.get(self.regla, "ERROR_TECNICO")
 
     def como_hallazgo(self) -> Hallazgo:
         return Hallazgo(agente="reglas", severidad=self.severidad, motivo=self.motivo,
@@ -78,8 +79,12 @@ def evaluar(ctx: Contexto) -> Evaluacion:
         fallas.append(Falla("datos", 1, "Datos no confiables: " + "; ".join(ctx.problemas) + "."))
     if ctx.fx is None or ctx.monto_usd_cents is None:
         moneda = ctx.moneda or "sin moneda"
+        # Sin moneda legible o con la extracción no validada, la causa raíz es la extracción;
+        # con una moneda válida sin tasa configurada, es un error técnico (de configuración).
+        por_extraccion = not ctx.moneda or not ctx.extraccion_ok
         fallas.append(Falla("fx", 1, f"No se puede convertir el monto a USD de forma confiable ({moneda}); "
-                            "no se evalúan los límites de dinero.", "moneda"))
+                            "no se evalúan los límites de dinero.", "moneda",
+                            codigo_fijo="EXTRACCION" if por_extraccion else ""))
 
     identidad = 2 if (ctx.extraccion_ok and not ctx.problemas) else 1   # v2: FRENAR si el dato es confiable
     if ctx.beneficiario_bloqueado:
