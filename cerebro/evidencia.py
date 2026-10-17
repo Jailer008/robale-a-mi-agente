@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from cerebro.config import RAIZ
+from cerebro.privacidad import sanear
 from cerebro.registro import verificar_cadena
 from cerebro.tipos import tipo_de
 from schemas import Decision
@@ -80,7 +81,7 @@ def paquete_evidencia(cerebro: Cerebro, factura_id: str) -> dict[str, Any]:
     final = Decision.model_validate_json(filas[-1][1])
     factura = json.loads(filas[0][2])
     usadas = {x["decision"]["version_reglas"] for x in decisiones}
-    return {
+    return sanear({
         "version_contrato": VERSION_CONTRATO,
         "factura_id": factura_id,
         "advertencia": ADVERTENCIA,
@@ -97,4 +98,4 @@ def paquete_evidencia(cerebro: Cerebro, factura_id: str) -> dict[str, Any]:
         "eventos": eventos,
         "pago_simulado": dict(zip(("decision_id", "monto", "moneda", "monto_usd_cents", "fecha_pago"), pago,
                                   strict=True)) if pago else None,
-    }
+    }, cerebro._cuentas())

@@ -21,6 +21,7 @@ from cerebro.agregador import agregar, explicar
 from cerebro.config import Reglas, cargar_reglas
 from cerebro.contexto import construir_contexto
 from cerebro.dinero import a_centavos, a_decimal
+from cerebro.privacidad import sanear
 from cerebro.reglas import evaluar
 from cerebro.tipos import causa, fallo
 from schemas import Decision, FacturaCanonica, Hallazgo
@@ -75,7 +76,7 @@ def aplicar_cambios(reglas: Reglas, cambios: Mapping[str, Any]) -> tuple[Reglas,
 
 
 def _evaluar(cerebro: Cerebro, con: sqlite3.Connection, factura: FacturaCanonica, reglas: Reglas) -> dict[str, Any]:
-    ctx = construir_contexto(factura, con, cerebro.catalogo, reglas, cerebro.ref_date)
+    ctx = construir_contexto(factura, con, cerebro.catalogo, reglas, cerebro.ref_date, cerebro.secreto)
     evaluacion = evaluar(ctx)
     hallazgos: list[Hallazgo] = []
     for nombre, agente in AGENTES:                       # deterministas y síncronos: sin red ni modelos
@@ -128,7 +129,7 @@ def simular(cerebro: Cerebro, factura: FacturaCanonica | str, cambios: Mapping[s
     antes, despues = set(original["reglas_fallidas"]), set(simulada["reglas_fallidas"])
     reglas_cambiadas = [{"regla": r, "antes": "falla" if r in antes else "cumple",
                          "despues": "falla" if r in despues else "cumple"} for r in sorted(antes ^ despues)]
-    return {
+    return sanear({
         "modo": "SANDBOX",
         "advertencia": ADVERTENCIA,
         "factura_id": factura.id_documento,
@@ -142,4 +143,4 @@ def simular(cerebro: Cerebro, factura: FacturaCanonica | str, cambios: Mapping[s
         "razon": _razon(original, simulada, resumen, reglas_cambiadas),
         "capa_semantica": "no se consulta en el sandbox (solo detectores deterministas)",
         "decision_registrada": registrada.model_dump(mode="json") if registrada else None,
-    }
+    }, cerebro._cuentas(factura))

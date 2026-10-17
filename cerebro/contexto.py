@@ -19,6 +19,7 @@ from cerebro.config import Reglas
 from cerebro.db import Pago, leer_pagos
 from cerebro.dinero import a_centavos, a_decimal, numero_es
 from cerebro.normalizar import clave
+from cerebro.privacidad import coincide, visible
 from schemas import FacturaCanonica
 
 _TOLERANCIA_ARITMETICA = Decimal("0.01")
@@ -121,7 +122,7 @@ def _aritmetica(factura: FacturaCanonica, problemas: list[str]) -> Decimal | Non
 
 
 def construir_contexto(factura: FacturaCanonica, con: sqlite3.Connection, catalogo: Catalogo, reglas: Reglas,
-                       ref_date: date) -> Contexto:
+                       ref_date: date, secreto: bytes | None = None) -> Contexto:
     problemas: list[str] = []
     if not factura.proveedor.strip():
         problemas.append("Falta el proveedor")
@@ -143,8 +144,8 @@ def construir_contexto(factura: FacturaCanonica, con: sqlite3.Connection, catalo
     proveedor = catalogo.proveedor(factura.proveedor)
     bloqueado = bool(proveedor and proveedor.get("bloqueado"))
     permitido = bool(proveedor and proveedor.get("permitido") is True and not bloqueado)
-    cuenta_ok = bool(proveedor and factura.cuenta_bancaria
-                     and clave(factura.cuenta_bancaria) == clave(proveedor.get("cuenta_registrada")))
+    # En claro o como token "****NNNN#hmac:…" (registro protegido): ver cerebro.privacidad.
+    cuenta_ok = bool(proveedor and coincide(factura.cuenta_bancaria, proveedor.get("cuenta_registrada"), secreto))
     contrato = catalogo.contrato_de(proveedor["nombre"]) if permitido else None
 
     return Contexto(
@@ -166,6 +167,6 @@ def construir_contexto(factura: FacturaCanonica, con: sqlite3.Connection, catalo
         pagos=pagos,
         problemas=problemas,
         nombre_factura=factura.proveedor.strip(),
-        cuenta_factura=factura.cuenta_bancaria,
+        cuenta_factura=visible(factura.cuenta_bancaria),
         diferencias=tuple(factura.diferencias),
     )

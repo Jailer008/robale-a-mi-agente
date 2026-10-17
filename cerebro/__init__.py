@@ -40,9 +40,10 @@ from cerebro.codigos import ACCIONES
 from cerebro.config import RAIZ, Reglas, cargar_reglas, ref_date_configurada
 from cerebro.contexto import Catalogo, Contexto, construir_contexto
 from cerebro.contrafactual import contrafactual
-from cerebro.db import BaseDatos, ahora, insertar_pago_simulado, verificar_pagos
+from cerebro.db import BaseDatos, ahora, insertar_pago_simulado, leer_secreto, verificar_pagos
 from cerebro.dinero import cents_a_decimal, usd_es
 from cerebro.firma import Firmante
+from cerebro.privacidad import enmascarar_texto, proteger_factura, sanear_decision
 from cerebro.registro import sellar
 from cerebro.registro import verificar_cadena as _verificar_cadena
 from cerebro.reglas import Evaluacion, evaluar
@@ -145,6 +146,26 @@ class Cerebro:
         self.firmante = firmante
         self.db = BaseDatos(db_path)
         self.db.inicializar(self.historico_csv, self.reglas)
+        self._cargar_secreto()
+
+    def _cargar_secreto(self) -> None:
+        with self.db.lectura() as con:
+            self.secreto = leer_secreto(con)
+
+    # ---------- privacidad: ninguna cuenta completa sale del cerebro ----------
+
+    def _cuentas(self, factura: FacturaCanonica | None = None) -> list[str]:
+        registradas = [str(p.get("cuenta_registrada")) for p in self.catalogo.proveedores if p.get("cuenta_registrada")]
+        return ([factura.cuenta_bancaria] if factura and factura.cuenta_bancaria else []) + registradas
+
+    def _factura_json(self, factura: FacturaCanonica) -> str:
+        """La factura que se guarda en el registro: cuenta como token HMAC, textos enmascarados."""
+        return proteger_factura(factura, self.secreto, self._cuentas(factura)).model_dump_json()
+
+    def _sellar(self, con, decision: Decision, factura_json: str, factura: FacturaCanonica | None = None,
+                clave_idempotencia: str | None = None) -> tuple[Decision, int]:
+        return sellar(con, sanear_decision(decision, self._cuentas(factura)), factura_json, self.firmante,
+                      clave_idempotencia)
 
     @property
     def historico_csv(self) -> Path:
@@ -158,7 +179,7 @@ class Cerebro:
 
     def contexto(self, factura: FacturaCanonica) -> Contexto:
         with self.db.lectura() as con:
-            return construir_contexto(factura, con, self.catalogo, self.reglas, self.ref_date)
+            return construir_contexto(factura, con, self.catalogo, self.reglas, self.ref_date, self.secreto)
 
     def verificar_cadena(self) -> tuple[bool, int | None]:
         with self.db.lectura() as con:
@@ -174,7 +195,7 @@ class Cerebro:
 
     async def _agentes(self, factura: FacturaCanonica, reglas: Reglas) -> tuple[list[Hallazgo], list[Evento]]:
         with self.db.lectura() as con:
-            ctx = construir_contexto(factura, con, self.catalogo, reglas, self.ref_date)
+            ctx = construir_contexto(factura, con, self.catalogo, reglas, self.ref_date, self.secreto)
         return await ejecutar_agentes_async(factura, ctx, self.agentes, capa=self.capa, semanticos=self.semanticos,
                                             timeout_s=self.timeout_agente_s)
 
@@ -198,7 +219,7 @@ class Cerebro:
         if problemas:
             fallos.append(fallo("registro", "El registro de pagos no es íntegro (" + "; ".join(problemas[:3])
                                 + "): no se autoriza ningún pago.", "pagos"))
-        ctx = construir_contexto(factura, con, self.catalogo, reglas, self.ref_date)
+        ctx = construir_contexto(factura, con, self.catalogo, reglas, self.ref_date, self.secreto)
         evaluacion = evaluar(ctx)
         try:
             revalidados = agente_duplicados.revisar(factura, ctx)
@@ -245,11 +266,11 @@ class Cerebro:
                     None if resultado.decision == "PAGAR" else contrafactual(ctx, evaluacion.fallas, todos + fallos),
                     version_reglas=reglas.version,
                 )
-                sellada, fila = sellar(con, decision, factura.model_dump_json(), self.firmante)
+                sellada, fila = self._sellar(con, decision, self._factura_json(factura), factura)
                 if sellada.decision == "PAGAR":
                     self._pagar_simulado(con, sellada, ctx, fila)
                 self._guardar_eventos(con, sellada.factura_id, fila, eventos, evaluacion, fallos,
-                                      _ms(inicio_final))
+                                      _ms(inicio_final), self._cuentas(factura))
             traza["revalidacion_ms"] = _ms(inicio_final)
             traza["total_ms"] = _ms(inicio)
             return sellada, traza
@@ -287,7 +308,7 @@ class Cerebro:
                                decision_id=fila)
 
     def _guardar_eventos(self, con, factura_id: str, fila: int, eventos: list[Evento], evaluacion: Evaluacion,
-                         fallos: list[Hallazgo], latencia_final_ms: int) -> None:
+                         fallos: list[Hallazgo], latencia_final_ms: int, cuentas: list[str] = ()) -> None:
         severidad_reglas = max((f.severidad for f in evaluacion.fallas), default=0)
         motivo_reglas = evaluacion.fallas[0].motivo if evaluacion.fallas else "ALLOW: todas las reglas se cumplen."
         filas = [(e.agente, e.severidad, e.probabilidad, e.latencia_ms, e.motivo, e.tipo) for e in eventos]
@@ -298,16 +319,17 @@ class Cerebro:
         con.executemany(
             "INSERT INTO eventos (factura_id, decision_id, agente, severidad, probabilidad, latencia_ms, motivo, tipo,"
             " ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [(factura_id, fila, *f, ahora()) for f in filas],
+            [(factura_id, fila, a, s, p, ms, enmascarar_texto(m, cuentas), t, ahora()) for a, s, p, ms, m, t in filas],
         )
 
     def _emergencia(self, factura: FacturaCanonica, error: BaseException) -> Decision:
         decision = decision_de_emergencia(factura, error, self.reglas.version)
         try:
             with self.db.transaccion() as con:
-                return sellar(con, decision, factura.model_dump_json(), self.firmante)[0]
+                return self._sellar(con, decision, self._factura_json(factura), factura)[0]
         except Exception:
             log.exception("Tampoco se pudo registrar la decisión de emergencia")
+            decision = sanear_decision(decision, self._cuentas(factura))
             return decision.model_copy(update={"explicacion": decision.explicacion + " No se pudo registrar."})
 
     # ---------- aprobación humana ----------
@@ -405,8 +427,11 @@ class Cerebro:
                       "hash_prev": "", "hash": "", "contrafactual": None, "aprobable": False,
                       "accion_requerida": None}
 
+            # Filas anteriores a v2 pueden tener la factura en claro: se vuelve a guardar protegida.
+            guardar = self._factura_json(factura) if factura is not None else factura_json
+
             def registrar(decision: Decision) -> Decision:
-                return sellar(con, decision, factura_json, self.firmante, clave_idempotencia)[0]
+                return self._sellar(con, decision, guardar, factura, clave_idempotencia)[0]
 
             if not aprobado:
                 return registrar(previa.model_copy(update={
@@ -447,9 +472,10 @@ class Cerebro:
             escalado = resultado.hallazgos[0].motivo if resultado.hallazgos else "sin motivo pendiente"
             explicacion = (f"Pago autorizado (simulado) por {aprobador} como excepción: {ctx.nombre_factura}, "
                            f"{usd_es(ctx.monto_usd_cents or 0)}. Se había escalado por: {escalado}")
-            sellada, fila = sellar(con, self._armar(factura, ctx, resultado, evaluacion.cedar, explicacion, None,
-                                                    decision="PAGAR", version_reglas=reglas.version, **humano),
-                                   factura_json, self.firmante, clave_idempotencia)
+            sellada, fila = self._sellar(con, self._armar(factura, ctx, resultado, evaluacion.cedar, explicacion,
+                                                          None, decision="PAGAR", version_reglas=reglas.version,
+                                                          **humano),
+                                         guardar, factura, clave_idempotencia)
             self._pagar_simulado(con, sellada, ctx, fila)
             return sellada
 

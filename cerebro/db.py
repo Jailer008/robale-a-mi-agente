@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import json
+import secrets
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -69,6 +70,10 @@ CREATE TABLE IF NOT EXISTS eventos (
     tipo          TEXT NOT NULL DEFAULT 'sin_hallazgos'  -- riesgo | fallo_tecnico | sin_evidencia | sin_hallazgos
 );
 CREATE INDEX IF NOT EXISTS ix_eventos_factura ON eventos (factura_id, id);
+CREATE TABLE IF NOT EXISTS metadatos (
+    clave  TEXT PRIMARY KEY,
+    valor  TEXT NOT NULL
+);
 """
 
 # Columnas agregadas en G3: una base creada en G2 se migra al iniciar (ALTER TABLE idempotente).
@@ -149,6 +154,9 @@ class BaseDatos:
         finally:
             con.close()
         with self.transaccion() as con:
+            # Secreto aleatorio de esta base para el HMAC de cuentas (cerebro.privacidad). No sale de la base.
+            con.execute("INSERT OR IGNORE INTO metadatos (clave, valor) VALUES ('secreto_cuentas', ?)",
+                        (secrets.token_hex(32),))
             con.execute(
                 "INSERT OR IGNORE INTO reglas_versiones (version, contenido, cargada_en) VALUES (?, ?, ?)",
                 (reglas.version, reglas.contenido, ahora()),
@@ -170,6 +178,13 @@ class BaseDatos:
             # Bases creadas antes de clave_numero: se recalcula la clave de número (idempotente).
             for fila_id, numero in con.execute("SELECT id, numero_factura FROM pagos").fetchall():
                 con.execute("UPDATE pagos SET numero_clave = ? WHERE id = ?", (clave_numero(numero), fila_id))
+
+
+def leer_secreto(con: sqlite3.Connection) -> bytes:
+    fila = con.execute("SELECT valor FROM metadatos WHERE clave = 'secreto_cuentas'").fetchone()
+    if fila is None:
+        raise RuntimeError("La base no tiene secreto de cuentas: inicialícela con BaseDatos.inicializar")
+    return bytes.fromhex(fila[0])
 
 
 def leer_pagos(con: sqlite3.Connection) -> list[Pago]:

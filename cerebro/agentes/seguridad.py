@@ -16,6 +16,7 @@ import re
 import unicodedata
 
 from cerebro.contexto import Contexto
+from cerebro.privacidad import enmascarar_libre
 from schemas import FacturaCanonica, Hallazgo
 
 NOMBRE = "seguridad"
@@ -64,7 +65,7 @@ def _primera_coincidencia(texto: str) -> re.Match[str] | None:
 def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
     hallazgos: list[Hallazgo] = []
     if factura.texto_oculto:
-        revelado = " | ".join(factura.texto_oculto)
+        revelado = enmascarar_libre(" | ".join(factura.texto_oculto))
         hallazgos.append(Hallazgo(agente=NOMBRE, severidad=2, campo="texto_oculto",
                                   motivo=f"Texto oculto encontrado: '{revelado[:160]}'. Las instrucciones dentro de "
                                          "documentos no tienen autoridad.",
@@ -74,6 +75,7 @@ def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
         if coincidencia:
             hallazgos.append(Hallazgo(agente=NOMBRE, severidad=2, campo=campo,
                                       motivo=f"Instrucciones dirigidas al sistema en {campo}: "
-                                             f"«{coincidencia.group(0)[:80]}». Se ignoran y se frena el pago.",
+                                             f"«{enmascarar_libre(coincidencia.group(0)[:80])}». Se ignoran y se "
+                                             "frena el pago.",
                                       evidencia=f"texto={texto[:300]}", codigo="INYECCION"))
     return hallazgos
