@@ -153,6 +153,15 @@ curl -X POST -H "Authorization: Bearer <token-admin>" http://127.0.0.1:8000/admi
 - Raíz: `uv run pytest -q` cubre los 619 de G4 más los 48 de la API (`tests/test_app_api.py`).
 - UI: `cd app/ui && uv run pytest -q` da 3 passed más 1 E2E, que se activa con `ATTACK_LAB_API_URL`.
 
+**Bandit:** `bandit -r app cerebro` también recorre `app/ui/.venv` (código de terceros), y en Windows `-x` no lo excluye. Para revisar solo nuestro código:
+
+```bash
+uv run bandit -q -r cerebro app/__init__.py app/api.py app/config.py app/documentos.py app/seguridad.py \
+  app/servicios.py app/sintetico.py app/ui/ui.py app/ui/paginas.py app/ui/estilo.py app/ui/cliente.py
+```
+
+Resultado: sin hallazgos.
+
 **Smoke local (2026-10-17):** uvicorn en `127.0.0.1:8000` y Streamlit en `127.0.0.1:8501/attack-lab` (HTTP 200).
 
 | Caso | Resultado |
