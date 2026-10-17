@@ -66,27 +66,49 @@ class _NoDisponible:
         raise RuntimeError(self._motivo)
 
 
+_CLAVES = {"openai": "OPENAI_API_KEY", "claude": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY"}
+# Gemini va al final: en su plan gratuito permite 20 solicitudes al día por modelo.
+ORDEN_POR_DEFECTO = ("openai", "claude", "gemini")
+
+
+def _orden_proveedores() -> list[str]:
+    pedido = os.environ.get("EXTRACTORES")
+    if not pedido:
+        return list(ORDEN_POR_DEFECTO)
+    return [p.strip().lower() for p in pedido.split(",") if p.strip().lower() in _CLAVES]
+
+
+def _crear(proveedor: str, etiqueta: str, timeout_s: float, prompt: str) -> Extractor:
+    if proveedor == "openai":
+        from extraccion.extractor_openai import ExtractorOpenAI
+        return ExtractorOpenAI(etiqueta=etiqueta, timeout_s=timeout_s, prompt=prompt)
+    if proveedor == "claude":
+        from extraccion.extractor_b import ExtractorClaude
+        return ExtractorClaude(etiqueta=etiqueta, timeout_s=timeout_s, prompt=prompt)
+    from extraccion.extractor_a import ExtractorGemini
+    return ExtractorGemini(etiqueta=etiqueta, timeout_s=timeout_s, prompt=prompt)
+
+
 def extractores_por_defecto(*, cargar_env: bool = True) -> tuple[Extractor, Extractor]:
-    """A = Gemini; B = Claude Haiku 5.5, o relectura con Gemini si no hay clave de Anthropic."""
+    """A y B = los dos primeros proveedores con clave (orden: OpenAI, Claude, Gemini, o EXTRACTORES).
+
+    Con un solo proveedor, B es una relectura con otro prompt (recorte previsto en el plan:
+    se pierde descorrelación, se mantiene la comparación). Sin ninguno, la factura escala.
+    """
     if cargar_env:
         load_dotenv()
-    from extraccion.extractor_a import ExtractorGemini
-    from extraccion.extractor_b import ExtractorClaude
     from extraccion.modelo import PROMPT
 
     limite = max(1.0, timeout_configurado() - MARGEN_S)
-    hay_gemini = bool(os.environ.get("GEMINI_API_KEY"))
-    a: Extractor = (ExtractorGemini(timeout_s=limite) if hay_gemini
-                    else _NoDisponible("A", "falta GEMINI_API_KEY"))
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        b: Extractor = ExtractorClaude(timeout_s=limite)
-    elif hay_gemini:
-        # Recorte previsto en el plan: se pierde descorrelación, se mantiene la comparación.
+    disponibles = [p for p in _orden_proveedores() if os.environ.get(_CLAVES[p])]
+    if len(disponibles) >= 2:
+        return (_crear(disponibles[0], "A", limite, PROMPT), _crear(disponibles[1], "B", limite, PROMPT))
+    if len(disponibles) == 1:
         relectura = PROMPT + " Revisa dos veces cada cifra antes de responder."
-        b = ExtractorGemini(prompt=relectura, etiqueta="B-relectura", timeout_s=limite)
-    else:
-        b = _NoDisponible("B", "falta ANTHROPIC_API_KEY")
-    return a, b
+        return (_crear(disponibles[0], "A", limite, PROMPT),
+                _crear(disponibles[0], "B-relectura", limite, relectura))
+    motivo = "falta una clave de OpenAI, Anthropic o Gemini"
+    return _NoDisponible("A", motivo), _NoDisponible("B", motivo)
 
 
 def _ejecutar(extractores: list[Extractor], doc: Documento, timeout_s: float) -> list[Resultado]:

@@ -1,6 +1,6 @@
-"""Extractor B: Claude Haiku 5.5 con salida estructurada (otro proveedor que A).
+"""Extractor Claude Haiku 5.5 con salida estructurada.
 
-Proveedor distinto para que los errores de A y B no estén correlacionados.
+A y B usan proveedores distintos para que sus errores no estén correlacionados.
 """
 
 from __future__ import annotations
@@ -17,11 +17,20 @@ MODELO = "claude-haiku-5-5"
 
 
 class ExtractorClaude:
-    def __init__(self, *, modelo: str = MODELO, timeout_s: float = 20.0, cliente: Any = None) -> None:
+    def __init__(
+        self,
+        *,
+        modelo: str = MODELO,
+        prompt: str = PROMPT,
+        timeout_s: float = 20.0,
+        cliente: Any = None,
+        etiqueta: str = "B",
+    ) -> None:
         self.modelo = modelo
+        self.prompt = prompt
         self.timeout_s = timeout_s
         self._cliente = cliente
-        self.nombre = f"B:{modelo}"
+        self.nombre = f"{etiqueta}:{modelo}"
 
     @property
     def cliente(self) -> Any:
@@ -48,7 +57,7 @@ class ExtractorClaude:
         respuesta = self.cliente.messages.parse(
             model=self.modelo,
             max_tokens=8000,
-            system=PROMPT,
+            system=self.prompt,
             messages=[{"role": "user", "content": contenido}],
             output_config={"effort": "low"},
             output_format=CamposExtraidos,
