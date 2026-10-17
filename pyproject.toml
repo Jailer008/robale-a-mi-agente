@@ -12,6 +12,7 @@ dependencies = [
     "google-genai>=1.0",
     "anthropic>=1.0",
     "python-dotenv>=1.0",
+    "openai>=3.33.0",
 ]
 
 [dependency-groups]

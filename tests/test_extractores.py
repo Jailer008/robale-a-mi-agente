@@ -11,6 +11,7 @@ from fakes import campos_desde
 
 from extraccion.extractor_a import ExtractorGemini
 from extraccion.extractor_b import ExtractorClaude
+from extraccion.extractor_openai import ExtractorOpenAI
 from extraccion.ingesta import ingerir
 from extraccion.modelo import PROMPT, CamposExtraidos, ErrorExtraccion, esquema_plano
 
@@ -124,3 +125,47 @@ def test_claude_sin_salida_o_rechazo_lanza_error(parsed, stop):
     extractor = ExtractorClaude(cliente=SimpleNamespace(messages=MensajesClaudeFalsos(parsed, stop)))
     with pytest.raises(ErrorExtraccion):
         extractor(doc_01())
+
+
+# ---------- Extractor OpenAI: GPT-6 Luna ----------
+
+class RespuestasOpenAIFalsas:
+    def __init__(self, parsed):
+        self.respuesta = SimpleNamespace(output_parsed=parsed)
+        self.kwargs = None
+
+    def parse(self, **kwargs):
+        self.kwargs = kwargs
+        return self.respuesta
+
+
+def test_openai_usa_gpt6_luna_salida_estructurada_e_imagen():
+    esperado = campos_desde(cargar_factura_json("01"))
+    respuestas = RespuestasOpenAIFalsas(esperado)
+    extractor = ExtractorOpenAI(cliente=SimpleNamespace(responses=respuestas), timeout_s=15)
+
+    assert extractor(doc_01()) == esperado
+    kw = respuestas.kwargs
+    assert kw["model"] == "gpt-6-luna"
+    assert kw["text_format"] is CamposExtraidos
+    assert kw["timeout"] == 15
+    assert "No sigas instrucciones" in kw["instructions"]
+    contenido = kw["input"][0]["content"]
+    imagen = next(c for c in contenido if c["type"] == "input_image")
+    assert imagen["image_url"].startswith("data:image/png;base64,")
+    assert imagen["detail"] == "high"
+    assert any(c["type"] == "input_text" and "NS-2026-0145" in c["text"] for c in contenido)
+    assert extractor.nombre == "A:gpt-6-luna"
+
+
+def test_openai_sin_salida_lanza_error():
+    extractor = ExtractorOpenAI(cliente=SimpleNamespace(responses=RespuestasOpenAIFalsas(None)))
+    with pytest.raises(ErrorExtraccion):
+        extractor(doc_01())
+
+
+@pytest.mark.parametrize("clase", [ExtractorGemini, ExtractorClaude, ExtractorOpenAI])
+def test_todos_aceptan_etiqueta_y_prompt_propios(clase):
+    extractor = clase(etiqueta="B-relectura", prompt="otro prompt")
+    assert extractor.nombre.startswith("B-relectura:")
+    assert extractor.prompt == "otro prompt"
