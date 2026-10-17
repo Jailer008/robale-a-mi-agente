@@ -66,7 +66,7 @@ def test_sin_claves_los_extractores_fallan_y_la_factura_escala(entorno):
 
 
 def test_timeout_por_defecto_y_configurable(entorno):
-    assert timeout_configurado() == 45.0
+    assert timeout_configurado() == 20.0
     entorno.setenv("EXTRACCION_TIMEOUT_S", "30")
     assert timeout_configurado() == 30.0
     con_claves(entorno, *CLAVES)
@@ -77,4 +77,4 @@ def test_timeout_por_defecto_y_configurable(entorno):
 @pytest.mark.parametrize("valor", ["abc", "-3", "0"])
 def test_timeout_invalido_usa_el_por_defecto(entorno, valor):
     entorno.setenv("EXTRACCION_TIMEOUT_S", valor)
-    assert timeout_configurado() == 45.0
+    assert timeout_configurado() == 20.0
