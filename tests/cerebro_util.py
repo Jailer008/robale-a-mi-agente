@@ -37,3 +37,16 @@ def nueva_cerebro(tmp_path: Path, **kwargs):
 
     kwargs.setdefault("ref_date", REF)
     return Cerebro(db_path=tmp_path / "cerebro.db", datos=DATOS, **kwargs)
+
+
+def AGENTES_LENTOS(segundos: float):  # noqa: N802 - se usa como constante parametrizada
+    """Los cinco agentes más uno que tarda: simula una solicitud en curso."""
+    import time
+
+    from cerebro.agentes import AGENTES
+
+    def lento(f, ctx):
+        time.sleep(segundos)
+        return []
+
+    return (*AGENTES, ("lento", lento))
