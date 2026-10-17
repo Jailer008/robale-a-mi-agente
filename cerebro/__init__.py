@@ -51,7 +51,7 @@ from schemas import Decision, FacturaCanonica, Hallazgo
 
 __all__ = [
     "CadenaAlterada", "Cerebro", "NoAprobable", "ReevaluacionNecesaria", "decidir", "decidir_async",
-    "paquete_evidencia", "reanudar", "simular_politica", "verificar_cadena",
+    "paquete_evidencia", "reanudar", "reevaluar", "simular_politica", "verificar_cadena",
 ]
 
 log = logging.getLogger(__name__)
@@ -190,6 +190,10 @@ class Cerebro:
             fallos.append(fallo("reglas", f"Las reglas cambiaron durante la evaluación ({reglas.version[:12]} → "
                                           f"{actuales.version[:12]}); hay que reevaluar antes de pagar.",
                                 "reglas_versiones"))
+        integra, fila_rota = _verificar_cadena(con, self.firmante)
+        if not integra:
+            fallos.append(fallo("registro", f"El registro de decisiones está alterado (fila {fila_rota}): no se "
+                                            "autoriza ningún pago hasta revisarlo.", "decision_log"))
         problemas = verificar_pagos(con, self.historico_csv)
         if problemas:
             fallos.append(fallo("registro", "El registro de pagos no es íntegro (" + "; ".join(problemas[:3])
@@ -434,6 +438,12 @@ class Cerebro:
                 tecnicos = tecnicos or resultado.hallazgos
                 raise ReevaluacionNecesaria(f"No se aprueba todavía: {resumen(tecnicos)} La factura sigue pendiente.")
 
+            if not previa.aprobable:
+                # El aprobador vio una evaluación incompleta (datos dudosos o un detector caído): aunque la
+                # revalidación salga limpia, esta aprobación no paga. Hay que reevaluar y aprobar de nuevo.
+                raise ReevaluacionNecesaria(
+                    f"La decisión registrada no era aprobable ({previa.codigo_principal}). Use reevaluar() para "
+                    "que el aprobador vea la evaluación completa y vuelva a decidir.")
             escalado = resultado.hallazgos[0].motivo if resultado.hallazgos else "sin motivo pendiente"
             explicacion = (f"Pago autorizado (simulado) por {aprobador} como excepción: {ctx.nombre_factura}, "
                            f"{usd_es(ctx.monto_usd_cents or 0)}. Se había escalado por: {escalado}")
@@ -442,6 +452,17 @@ class Cerebro:
                                    factura_json, self.firmante, clave_idempotencia)
             self._pagar_simulado(con, sellada, ctx, fila)
             return sellada
+
+    def reevaluar(self, factura_id: str) -> Decision:
+        return correr_sync(self.reevaluar_async(factura_id))
+
+    async def reevaluar_async(self, factura_id: str) -> Decision:
+        """Nueva validación completa de un ESCALAR pendiente (por ejemplo, tras un fallo de Jev). No paga
+        nada: produce una decisión nueva en el registro, que vuelve a pasar por la aprobación humana."""
+        with self.db.lectura() as con:
+            self._verificar_o_fallar(con)
+            _, _, factura_json = self._pendiente(con, factura_id)
+        return await self.decidir_async(FacturaCanonica.model_validate_json(factura_json))
 
     # ---------- evidencia y sandbox ----------
 
@@ -515,6 +536,10 @@ async def decidir_async(factura: FacturaCanonica) -> Decision:
 
 def reanudar(factura_id: str, aprobado: bool, aprobador: str, *, clave_idempotencia: str | None = None) -> Decision:
     return _cerebro().reanudar(factura_id, aprobado, aprobador, clave_idempotencia=clave_idempotencia)
+
+
+def reevaluar(factura_id: str) -> Decision:
+    return _cerebro().reevaluar(factura_id)
 
 
 def verificar_cadena() -> tuple[bool, int | None]:
