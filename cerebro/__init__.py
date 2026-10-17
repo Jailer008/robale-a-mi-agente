@@ -6,7 +6,15 @@
     ok, fila_rota = verificar_cadena()
 
 Los modelos solo aportan Hallazgo; las reglas deciden; una persona firma las excepciones.
-Todo PAGAR es una autorización SIMULADA: aquí no se mueve dinero.
+Todo PAGAR es una autorización SIMULADA: aquí no se mueve dinero. Contrato completo para
+Dev 3 en cerebro/README.md.
+
+Flujo de decidir (G3):
+  1. reglas.yaml se relee (versión = SHA-256) y se toma una instantánea de LECTURA del contexto.
+  2. Los cinco agentes corren en paralelo (asyncio), SIN ninguna transacción de escritura abierta.
+  3. Transacción final BEGIN IMMEDIATE (sin esperas externas): se verifica que las reglas no
+     cambiaron y que el registro de pagos es íntegro; se recalculan saldo, límites y duplicados;
+     se agrega (veto monotónico), se sella la decisión y, si es PAGAR, se anota el pago simulado.
 """
 
 from __future__ import annotations
@@ -16,29 +24,46 @@ import logging
 import math
 import os
 import threading
-from collections.abc import Sequence
+import time
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any
 
 from pydantic import ValidationError
 
-from cerebro.agentes import AGENTES, Agente, Evento, ejecutar_agentes
+from cerebro.agentes import AGENTES, Agente, AgenteSemantico, Evento, ejecutar_agentes_async
+from cerebro.agentes import duplicados as agente_duplicados
 from cerebro.agregador import Resultado, agregar, explicar, resumen
-from cerebro.config import RAIZ, cargar_reglas, ref_date_configurada
+from cerebro.asincronia import correr_sync
+from cerebro.config import RAIZ, Reglas, cargar_reglas, ref_date_configurada
 from cerebro.contexto import Catalogo, Contexto, construir_contexto
 from cerebro.contrafactual import contrafactual
-from cerebro.db import BaseDatos, ahora, insertar_pago_simulado
+from cerebro.db import BaseDatos, ahora, insertar_pago_simulado, verificar_pagos
 from cerebro.dinero import cents_a_decimal, usd_es
+from cerebro.firma import Firmante
 from cerebro.registro import sellar
 from cerebro.registro import verificar_cadena as _verificar_cadena
 from cerebro.reglas import Evaluacion, evaluar
+from cerebro.tipos import causa, fallo, tipo_de
 from schemas import Decision, FacturaCanonica, Hallazgo
 
-__all__ = ["Cerebro", "decidir", "reanudar", "verificar_cadena"]
+__all__ = [
+    "CadenaAlterada", "Cerebro", "ReevaluacionNecesaria", "decidir", "decidir_async", "paquete_evidencia",
+    "reanudar", "simular_politica", "verificar_cadena",
+]
 
 log = logging.getLogger(__name__)
 NO_APROBABLES = frozenset({"extraccion", "datos", "fx"})   # sin monto validado no hay excepción posible
-_MAX_ERROR = 200
+_MAX_CLAVE_IDEMPOTENCIA = 200
+
+
+class CadenaAlterada(RuntimeError):
+    """El registro fue manipulado: no se aprueba nada hasta revisarlo."""
+
+
+class ReevaluacionNecesaria(RuntimeError):
+    """Un detector falló al revalidar: la factura sigue pendiente; reintente o reevalúe."""
 
 
 def _factura_id(factura: FacturaCanonica) -> str:
@@ -51,12 +76,20 @@ def _finito(valor: float) -> float:
     return float(valor) if isinstance(valor, int | float) and math.isfinite(valor) else 0.0
 
 
+def _unir(*listas: Iterable[Hallazgo]) -> list[Hallazgo]:
+    """Une hallazgos sin repetir (mismo agente, severidad y motivo). Solo suma: nunca quita."""
+    vistos: dict[tuple[str, int, str], Hallazgo] = {}
+    for lista in listas:
+        for h in lista:
+            vistos.setdefault((h.agente, h.severidad, h.motivo), h)
+    return list(vistos.values())
+
+
 def decision_de_emergencia(factura: FacturaCanonica, error: BaseException, version_reglas: str = "desconocida",
                            ) -> Decision:
     """Error técnico: ESCALAR con la causa visible, o FRENAR si ya se sabe que hay texto oculto."""
-    causa = f"{type(error).__name__}: {error}"[:_MAX_ERROR]
-    hallazgos = [Hallazgo(agente="sistema", severidad=1, evidencia="error técnico",
-                          motivo=f"Error técnico al decidir ({causa}); se escala por seguridad.")]
+    hallazgos = [fallo("sistema", f"Error técnico al decidir ({causa(error)}); se escala por seguridad.",
+                       causa(error))]
     if factura.texto_oculto:
         hallazgos.insert(0, Hallazgo(agente="seguridad", severidad=2, campo="texto_oculto",
                                      motivo=f"Texto oculto encontrado: '{' | '.join(factura.texto_oculto)[:160]}'.",
@@ -71,65 +104,145 @@ def decision_de_emergencia(factura: FacturaCanonica, error: BaseException, versi
     )
 
 
+def _ms(inicio: float) -> int:
+    return int((time.perf_counter() - inicio) * 1000)
+
+
 class Cerebro:
     def __init__(self, *, db_path: Path, datos: Path = RAIZ / "datos", reglas_path: Path = RAIZ / "reglas.yaml",
                  ref_date: date | None = None, agentes: Sequence[tuple[str, Agente]] = AGENTES,
-                 aprobadores: frozenset[str] | None = None) -> None:
+                 aprobadores: frozenset[str] | None = None, exigir_aprobadores: bool = False,
+                 capa: Any = None, semanticos: Mapping[str, AgenteSemantico] | None = None,
+                 timeout_agente_s: float | None = None, firmante: Firmante | None = None) -> None:
         self.datos = Path(datos)
-        self.reglas = cargar_reglas(reglas_path)
+        self.reglas_path = Path(reglas_path)
+        self.reglas = cargar_reglas(self.reglas_path)
         self.catalogo = Catalogo.cargar(self.datos)
         self.ref_date = ref_date or ref_date_configurada()
         self.agentes = tuple(agentes)
         self.aprobadores = aprobadores
+        self.exigir_aprobadores = exigir_aprobadores
+        self.capa = capa
+        if semanticos is None and capa is not None:
+            from cerebro.semantica import SEMANTICOS
+            semanticos = SEMANTICOS
+        self.semanticos = dict(semanticos or {})
+        self.timeout_agente_s = timeout_agente_s if timeout_agente_s is not None else float(
+            os.environ.get("CEREBRO_TIMEOUT_AGENTE_S") or 3.0)
+        self.firmante = firmante
         self.db = BaseDatos(db_path)
-        self.db.inicializar(self.datos / "historico_pagos.csv", self.reglas)
+        self.db.inicializar(self.historico_csv, self.reglas)
+
+    @property
+    def historico_csv(self) -> Path:
+        return self.datos / "historico_pagos.csv"
+
+    @property
+    def modo_semantico(self) -> str:
+        return getattr(self.capa, "modo", "determinista") if self.capa is not None else "determinista"
 
     # ---------- lectura ----------
 
     def contexto(self, factura: FacturaCanonica) -> Contexto:
-        with self.db.transaccion() as con:
+        with self.db.lectura() as con:
             return construir_contexto(factura, con, self.catalogo, self.reglas, self.ref_date)
 
     def verificar_cadena(self) -> tuple[bool, int | None]:
-        with self.db.transaccion() as con:
-            return _verificar_cadena(con)
+        with self.db.lectura() as con:
+            return _verificar_cadena(con, self.firmante)
+
+    def verificar_pagos(self) -> list[str]:
+        with self.db.lectura() as con:
+            return verificar_pagos(con, self.historico_csv)
+
+    def _reglas_actuales(self) -> Reglas:
+        self.reglas = cargar_reglas(self.reglas_path)
+        return self.reglas
+
+    async def _agentes(self, factura: FacturaCanonica, reglas: Reglas) -> tuple[list[Hallazgo], list[Evento]]:
+        with self.db.lectura() as con:
+            ctx = construir_contexto(factura, con, self.catalogo, reglas, self.ref_date)
+        return await ejecutar_agentes_async(factura, ctx, self.agentes, capa=self.capa, semanticos=self.semanticos,
+                                            timeout_s=self.timeout_agente_s)
+
+    def _revalidar(self, con, factura: FacturaCanonica,
+                   reglas: Reglas) -> tuple[Contexto, Evaluacion, list[Hallazgo], list[Hallazgo]]:
+        """Dentro de la transacción final: nada externo, solo código y la base."""
+        fallos: list[Hallazgo] = []
+        actuales = cargar_reglas(self.reglas_path)
+        for version in (reglas, actuales):
+            con.execute("INSERT OR IGNORE INTO reglas_versiones (version, contenido, cargada_en) VALUES (?, ?, ?)",
+                        (version.version, version.contenido, ahora()))
+        if actuales.version != reglas.version:
+            fallos.append(fallo("reglas", f"Las reglas cambiaron durante la evaluación ({reglas.version[:12]} → "
+                                          f"{actuales.version[:12]}); hay que reevaluar antes de pagar.",
+                                "reglas_versiones"))
+        problemas = verificar_pagos(con, self.historico_csv)
+        if problemas:
+            fallos.append(fallo("registro", "El registro de pagos no es íntegro (" + "; ".join(problemas[:3])
+                                + "): no se autoriza ningún pago.", "pagos"))
+        ctx = construir_contexto(factura, con, self.catalogo, reglas, self.ref_date)
+        evaluacion = evaluar(ctx)
+        try:
+            revalidados = agente_duplicados.revisar(factura, ctx)
+        except Exception as error:
+            revalidados = [fallo("duplicados", f"No se pudo revalidar duplicados ({causa(error)}).", causa(error))]
+        return ctx, evaluacion, revalidados, fallos
 
     # ---------- decidir ----------
 
     def decidir(self, factura: FacturaCanonica) -> Decision:
         """Nunca lanza. Ante cualquier error devuelve ESCALAR (o FRENAR si hay texto oculto) con la causa."""
         try:
-            return self._decidir(factura)
+            return correr_sync(self.decidir_async(factura))
         except Exception as error:
-            log.exception("Error técnico decidiendo %s", factura.id_documento[:12])
+            log.exception("Error técnico decidiendo")
             return self._emergencia(factura, error)
 
-    def _evaluar(self, factura: FacturaCanonica, con) -> tuple[Contexto, Evaluacion, list[Hallazgo], list[Evento]]:
-        ctx = construir_contexto(factura, con, self.catalogo, self.reglas, self.ref_date)
-        evaluacion = evaluar(ctx)
-        hallazgos, eventos = ejecutar_agentes(factura, ctx, self.agentes)
-        return ctx, evaluacion, hallazgos, eventos
+    async def decidir_async(self, factura: FacturaCanonica) -> Decision:
+        return (await self._decidir_con_traza(factura))[0]
 
-    def _decidir(self, factura: FacturaCanonica) -> Decision:
-        # Una sola transacción de escritura: contexto, reglas, pago simulado y registro son atómicos,
-        # así dos solicitudes simultáneas no ven el mismo saldo ni pagan dos veces.
-        with self.db.transaccion() as con:
-            inicio = datetime.now(UTC)
-            ctx, evaluacion, hallazgos, eventos = self._evaluar(factura, con)
-            resultado = agregar(extraccion_ok=ctx.extraccion_ok, cedar=evaluacion.cedar,
-                                fallas=evaluacion.fallas, hallazgos=hallazgos)
-            decision = self._armar(
-                factura, ctx, resultado, evaluacion.cedar, explicar(resultado, ctx),
-                None if resultado.decision == "PAGAR" else contrafactual(ctx, evaluacion.fallas, hallazgos),
-            )
-            sellada, fila = sellar(con, decision, factura.model_dump_json())
-            if sellada.decision == "PAGAR":
-                self._pagar_simulado(con, sellada, ctx, fila)
-            self._guardar_eventos(con, sellada.factura_id, fila, eventos, evaluacion, inicio)
-            return sellada
+    def decidir_con_traza(self, factura: FacturaCanonica) -> tuple[Decision, dict[str, int]]:
+        """Como decidir(), más la latencia por etapa (para cerebro.medir)."""
+        try:
+            return correr_sync(self._decidir_con_traza(factura))
+        except Exception as error:
+            return self._emergencia(factura, error), {}
+
+    async def _decidir_con_traza(self, factura: FacturaCanonica) -> tuple[Decision, dict[str, int]]:
+        traza: dict[str, int] = {}
+        inicio = time.perf_counter()
+        try:
+            reglas = self._reglas_actuales()
+            hallazgos, eventos = await self._agentes(factura, reglas)
+            traza["agentes_ms"] = _ms(inicio)
+            traza.update({f"agente.{e.agente}_ms": e.latencia_ms for e in eventos})
+            inicio_final = time.perf_counter()
+            with self.db.transaccion() as con:
+                ctx, evaluacion, revalidados, fallos = self._revalidar(con, factura, reglas)
+                todos = _unir(hallazgos, revalidados)
+                resultado = agregar(extraccion_ok=ctx.extraccion_ok, cedar=evaluacion.cedar,
+                                    fallas=evaluacion.fallas, hallazgos=todos, fallos=fallos)
+                decision = self._armar(
+                    factura, ctx, resultado, evaluacion.cedar, explicar(resultado, ctx),
+                    None if resultado.decision == "PAGAR" else contrafactual(ctx, evaluacion.fallas, todos + fallos),
+                    version_reglas=reglas.version,
+                )
+                sellada, fila = sellar(con, decision, factura.model_dump_json(), self.firmante)
+                if sellada.decision == "PAGAR":
+                    self._pagar_simulado(con, sellada, ctx, fila)
+                self._guardar_eventos(con, sellada.factura_id, fila, eventos, evaluacion, fallos,
+                                      _ms(inicio_final))
+            traza["revalidacion_ms"] = _ms(inicio_final)
+            traza["total_ms"] = _ms(inicio)
+            return sellada, traza
+        except Exception as error:
+            log.exception("Error técnico decidiendo %s", factura.id_documento[:12])
+            traza["total_ms"] = _ms(inicio)
+            return self._emergencia(factura, error), traza
 
     def _armar(self, factura: FacturaCanonica, ctx: Contexto, resultado: Resultado, cedar: str, explicacion: str,
-               contrafactual_texto: str | None, **extra) -> Decision:
+               contrafactual_texto: str | None, **extra: Any) -> Decision:
         fx = ctx.fx
         campos = dict(
             factura_id=_factura_id(factura), numero_factura=factura.numero_factura, proveedor=factura.proveedor,
@@ -141,7 +254,7 @@ class Cerebro:
             monto_usd=float(cents_a_decimal(ctx.monto_usd_cents)) if ctx.monto_usd_cents is not None else 0.0,
             fx_rate=float(fx.unidades_por_usd) if fx else 0.0,
             fx_source=f"{fx.fuente} · {fx.fecha}" if fx else "sin tasa FX confiable",
-            version_reglas=self.reglas.version, ts=datetime.now(UTC), hash_prev="", hash="",
+            version_reglas=ctx.reglas.version, ts=datetime.now(UTC), hash_prev="", hash="",
         )
         campos.update(extra)
         return Decision(**campos)
@@ -155,15 +268,17 @@ class Cerebro:
                                decision_id=fila)
 
     def _guardar_eventos(self, con, factura_id: str, fila: int, eventos: list[Evento], evaluacion: Evaluacion,
-                         inicio: datetime) -> None:
-        latencia_reglas = int((datetime.now(UTC) - inicio).total_seconds() * 1000)
+                         fallos: list[Hallazgo], latencia_final_ms: int) -> None:
         severidad_reglas = max((f.severidad for f in evaluacion.fallas), default=0)
         motivo_reglas = evaluacion.fallas[0].motivo if evaluacion.fallas else "ALLOW: todas las reglas se cumplen."
-        filas = [(e.agente, e.severidad, e.probabilidad, e.latencia_ms, e.motivo) for e in eventos]
-        filas.append(("reglas", severidad_reglas, None, latencia_reglas, motivo_reglas))
+        filas = [(e.agente, e.severidad, e.probabilidad, e.latencia_ms, e.motivo, e.tipo) for e in eventos]
+        filas.append(("reglas", severidad_reglas, None, latencia_final_ms, motivo_reglas,
+                      "riesgo" if evaluacion.fallas else "sin_hallazgos"))
+        if fallos:
+            filas.append(("revalidacion", 1, None, latencia_final_ms, fallos[0].motivo, "fallo_tecnico"))
         con.executemany(
-            "INSERT INTO eventos (factura_id, decision_id, agente, severidad, probabilidad, latencia_ms, motivo, ts)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO eventos (factura_id, decision_id, agente, severidad, probabilidad, latencia_ms, motivo, tipo,"
+            " ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [(factura_id, fila, *f, ahora()) for f in filas],
         )
 
@@ -171,70 +286,150 @@ class Cerebro:
         decision = decision_de_emergencia(factura, error, self.reglas.version)
         try:
             with self.db.transaccion() as con:
-                return sellar(con, decision, factura.model_dump_json())[0]
+                return sellar(con, decision, factura.model_dump_json(), self.firmante)[0]
         except Exception:
             log.exception("Tampoco se pudo registrar la decisión de emergencia")
             return decision.model_copy(update={"explicacion": decision.explicacion + " No se pudo registrar."})
 
     # ---------- aprobación humana ----------
 
-    def reanudar(self, factura_id: str, aprobado: bool, aprobador: str) -> Decision:
-        """Resuelve un ESCALAR pendiente. Aprobar revalida todo bajo transacción: un FRENAR,
-        una extracción no validada o un fallo técnico impiden pagar."""
+    def _autorizar(self, aprobador: object, aprobado: object, clave_idempotencia: object) -> str:
         if not isinstance(aprobador, str) or not aprobador.strip():
             raise ValueError("Falta el aprobador")
-        aprobador = aprobador.strip()
-        if self.aprobadores is not None and aprobador not in self.aprobadores:
-            raise PermissionError(f"'{aprobador}' no es un aprobador autorizado")
         if not isinstance(aprobado, bool):
             raise ValueError("aprobado debe ser True o False")
+        if clave_idempotencia is not None and (not isinstance(clave_idempotencia, str) or not clave_idempotencia
+                                               or len(clave_idempotencia) > _MAX_CLAVE_IDEMPOTENCIA):
+            raise ValueError("clave_idempotencia inválida")
+        aprobador = aprobador.strip()
+        if self.aprobadores:
+            if aprobador not in self.aprobadores:
+                raise PermissionError(f"'{aprobador}' no es un aprobador autorizado")
+        elif self.exigir_aprobadores and aprobado:
+            raise PermissionError("No hay aprobadores configurados (CEREBRO_APROBADORES): no se aprueba nada")
+        return aprobador
+
+    @staticmethod
+    def _repetida(con, clave: str | None, factura_id: str, aprobado: bool, aprobador: str) -> Decision | None:
+        """Idempotencia: la misma clave con los mismos datos devuelve la resolución ya registrada."""
+        if clave is None:
+            return None
+        fila = con.execute("SELECT factura_id, decision_json FROM decision_log WHERE clave_idempotencia = ?"
+                           " ORDER BY id LIMIT 1", (clave,)).fetchone()
+        if fila is None:
+            return None
+        previa = Decision.model_validate_json(fila[1])
+        if fila[0] != factura_id or previa.aprobador != aprobador or previa.aprobado is not aprobado:
+            raise ValueError("La clave de idempotencia ya se usó con otra factura u otra resolución")
+        return previa
+
+    @staticmethod
+    def _pendiente(con, factura_id: str) -> tuple[int, Decision, str]:
+        fila = con.execute("SELECT id, decision, estado, decision_json, factura_json FROM decision_log"
+                           " WHERE factura_id = ? ORDER BY id DESC LIMIT 1", (factura_id,)).fetchone()
+        if fila is None:
+            raise LookupError(f"No hay decisiones para {factura_id}")
+        if fila[1] != "ESCALAR" or fila[2] != "pendiente_humano":
+            raise ValueError(f"La factura {factura_id} no está pendiente de aprobación ({fila[1]}, {fila[2]})")
+        return int(fila[0]), Decision.model_validate_json(fila[3]), fila[4]
+
+    def _verificar_o_fallar(self, con) -> None:
+        integra, fila_rota = _verificar_cadena(con, self.firmante)
+        if not integra:
+            raise CadenaAlterada(f"La cadena de decisiones está alterada en la fila {fila_rota}: no se aprueba nada")
+
+    def reanudar(self, factura_id: str, aprobado: bool, aprobador: str, *,
+                 clave_idempotencia: str | None = None) -> Decision:
+        return correr_sync(self.reanudar_async(factura_id, aprobado, aprobador,
+                                               clave_idempotencia=clave_idempotencia))
+
+    async def reanudar_async(self, factura_id: str, aprobado: bool, aprobador: str, *,
+                             clave_idempotencia: str | None = None) -> Decision:
+        """Resuelve un ESCALAR pendiente.
+
+        - Rechazar → FRENAR firmado por el humano.
+        - Aprobar → se revalida todo: un FRENAR (inyección, tope duro, saldo, duplicado exacto…) o una
+          extracción/FX/datos no validados terminan en FRENAR ("corrija la entrada"); un fallo técnico
+          lanza ReevaluacionNecesaria y la factura sigue pendiente. Solo sin nada de eso → PAGAR simulado.
+        - Doble aprobación: solo la primera resuelve; con la misma clave_idempotencia se devuelve la misma
+          resolución, sin otra la segunda falla con ValueError.
+        """
+        aprobador = self._autorizar(aprobador, aprobado, clave_idempotencia)
+        with self.db.lectura() as con:
+            self._verificar_o_fallar(con)
+            repetida = self._repetida(con, clave_idempotencia, factura_id, aprobado, aprobador)
+            if repetida is not None:
+                return repetida
+            fila_pendiente, previa, factura_json = self._pendiente(con, factura_id)
+        try:
+            factura: FacturaCanonica | None = FacturaCanonica.model_validate_json(factura_json)
+        except ValidationError:
+            factura = None
+
+        reglas = self._reglas_actuales()
+        hallazgos: list[Hallazgo] = []
+        if aprobado and factura is not None:      # las llamadas externas, fuera de la transacción
+            hallazgos, _ = await self._agentes(factura, reglas)
 
         with self.db.transaccion() as con:
-            integra, fila_rota = _verificar_cadena(con)
-            if not integra:
-                raise RuntimeError(f"La cadena de decisiones está alterada en la fila {fila_rota}: no se aprueba nada")
-            fila = con.execute("SELECT decision, estado, decision_json, factura_json FROM decision_log"
-                               " WHERE factura_id = ? ORDER BY id DESC LIMIT 1", (factura_id,)).fetchone()
-            if fila is None:
-                raise LookupError(f"No hay decisiones para {factura_id}")
-            if fila[0] != "ESCALAR" or fila[1] != "pendiente_humano":
-                raise ValueError(f"La factura {factura_id} no está pendiente de aprobación ({fila[0]}, {fila[1]})")
-            previa = Decision.model_validate_json(fila[2])
+            self._verificar_o_fallar(con)
+            repetida = self._repetida(con, clave_idempotencia, factura_id, aprobado, aprobador)
+            if repetida is not None:
+                return repetida
+            if self._pendiente(con, factura_id)[0] != fila_pendiente:
+                raise ValueError(f"La factura {factura_id} ya fue resuelta por otra solicitud")
             humano = {"aprobador": aprobador, "aprobado": aprobado, "estado": "final", "ts": datetime.now(UTC),
                       "hash_prev": "", "hash": "", "contrafactual": None}
 
+            def registrar(decision: Decision) -> Decision:
+                return sellar(con, decision, factura_json, self.firmante, clave_idempotencia)[0]
+
             if not aprobado:
-                decision = previa.model_copy(update={**humano, "decision": "FRENAR",
-                                                     "explicacion": f"Rechazada por {aprobador}: {previa.explicacion}"})
-                return sellar(con, decision, fila[3])[0]
+                return registrar(previa.model_copy(update={
+                    **humano, "decision": "FRENAR", "explicacion": f"Rechazada por {aprobador}: {previa.explicacion}"}))
+            if factura is None:
+                return registrar(previa.model_copy(update={
+                    **humano, "decision": "FRENAR",
+                    "explicacion": "No se puede aprobar: la factura registrada no es válida."}))
 
-            try:
-                factura = FacturaCanonica.model_validate_json(fila[3])
-            except ValidationError:
-                decision = previa.model_copy(update={**humano, "decision": "FRENAR", "explicacion":
-                                                     "No se puede aprobar: la factura registrada no es válida."})
-                return sellar(con, decision, fila[3])[0]
-
-            ctx, evaluacion, hallazgos, _ = self._evaluar(factura, con)
-            resultado = agregar(extraccion_ok=ctx.extraccion_ok, cedar=evaluacion.cedar,
-                                fallas=evaluacion.fallas, hallazgos=hallazgos)
-            bloqueos = [h for h in resultado.hallazgos if h.severidad == 2]
-            bloqueos += [f.como_hallazgo() for f in evaluacion.fallas if f.regla in NO_APROBABLES]
-            bloqueos += [h for h in hallazgos if h.evidencia == "error técnico"]
-            if bloqueos:
-                decision = self._armar(factura, ctx, resultado, evaluacion.cedar,
-                                       f"No se puede aprobar: {resumen(bloqueos)}", None,
-                                       decision="FRENAR", **humano)
-                return sellar(con, decision, fila[3])[0]
+            ctx, evaluacion, revalidados, fallos = self._revalidar(con, factura, reglas)
+            todos = _unir(hallazgos, revalidados)
+            resultado = agregar(extraccion_ok=ctx.extraccion_ok, cedar=evaluacion.cedar, fallas=evaluacion.fallas,
+                                hallazgos=todos, fallos=fallos)
+            vetos = [h for h in resultado.hallazgos if h.severidad == 2]
+            entrada = [f.como_hallazgo() for f in evaluacion.fallas if f.regla in NO_APROBABLES]
+            entrada += [h for h in resultado.hallazgos if tipo_de(h) == "sin_evidencia"]
+            tecnicos = [h for h in resultado.hallazgos if tipo_de(h) == "fallo_tecnico"]
+            if vetos:
+                return registrar(self._armar(factura, ctx, resultado, evaluacion.cedar,
+                                             f"No se puede aprobar: {resumen(vetos)}", None,
+                                             decision="FRENAR", version_reglas=reglas.version, **humano))
+            if entrada:
+                return registrar(self._armar(factura, ctx, resultado, evaluacion.cedar,
+                                             f"No se puede aprobar: {resumen(entrada)} Corrija la entrada y vuelva "
+                                             "a enviarla.", None,
+                                             decision="FRENAR", version_reglas=reglas.version, **humano))
+            if tecnicos:
+                raise ReevaluacionNecesaria(f"No se aprueba todavía: {resumen(tecnicos)} La factura sigue pendiente.")
 
             escalado = resultado.hallazgos[0].motivo if resultado.hallazgos else "sin motivo pendiente"
             explicacion = (f"Pago autorizado (simulado) por {aprobador} como excepción: {ctx.nombre_factura}, "
                            f"{usd_es(ctx.monto_usd_cents or 0)}. Se había escalado por: {escalado}")
-            decision = self._armar(factura, ctx, resultado, evaluacion.cedar, explicacion, None,
-                                   decision="PAGAR", **humano)
-            sellada, fila_id = sellar(con, decision, fila[3])
-            self._pagar_simulado(con, sellada, ctx, fila_id)
+            sellada, fila = sellar(con, self._armar(factura, ctx, resultado, evaluacion.cedar, explicacion, None,
+                                                    decision="PAGAR", version_reglas=reglas.version, **humano),
+                                   factura_json, self.firmante, clave_idempotencia)
+            self._pagar_simulado(con, sellada, ctx, fila)
             return sellada
+
+    # ---------- evidencia y sandbox ----------
+
+    def paquete_evidencia(self, factura_id: str) -> dict[str, Any]:
+        from cerebro.evidencia import paquete_evidencia
+        return paquete_evidencia(self, factura_id)
+
+    def simular_politica(self, factura: FacturaCanonica | str, cambios: Mapping[str, Any]) -> dict[str, Any]:
+        from cerebro.sandbox import simular
+        return simular(self, factura, cambios)
 
 
 # ---------- interfaz pública del módulo (00_COMUN §4) ----------
@@ -243,12 +438,35 @@ _por_defecto: Cerebro | None = None
 _candado = threading.Lock()
 
 
+def _lista_entorno(*nombres: str) -> frozenset[str] | None:
+    for nombre in nombres:
+        valor = os.environ.get(nombre, "")
+        elementos = frozenset(e.strip() for e in valor.split(",") if e.strip())
+        if elementos:
+            return elementos
+    return None
+
+
+def construir_desde_entorno() -> Cerebro:
+    """DB_PATH, REF_DATE, CEREBRO_APROBADORES (o TELEGRAM_APROBADORES), SIGNING_KEY_PATH,
+    CEREBRO_SEMANTICA y CEREBRO_TIMEOUT_AGENTE_S. Ver cerebro/README.md."""
+    from cerebro.semantica import capa_desde_entorno
+
+    ruta_firma = os.environ.get("SIGNING_KEY_PATH", "").strip()
+    return Cerebro(
+        db_path=Path(os.environ.get("DB_PATH") or "blinka.db"),
+        aprobadores=_lista_entorno("CEREBRO_APROBADORES", "TELEGRAM_APROBADORES"),
+        exigir_aprobadores=True,
+        capa=capa_desde_entorno(),
+        firmante=Firmante.desde_archivo(Path(ruta_firma)) if ruta_firma else None,
+    )
+
+
 def _cerebro() -> Cerebro:
-    """Instancia compartida: DB_PATH (por defecto ./blinka.db) y REF_DATE del entorno."""
     global _por_defecto
     with _candado:
         if _por_defecto is None:
-            _por_defecto = Cerebro(db_path=Path(os.environ.get("DB_PATH") or "blinka.db"))
+            _por_defecto = construir_desde_entorno()
         return _por_defecto
 
 
@@ -261,9 +479,30 @@ def decidir(factura: FacturaCanonica) -> Decision:
     return cerebro.decidir(factura)
 
 
-def reanudar(factura_id: str, aprobado: bool, aprobador: str) -> Decision:
-    return _cerebro().reanudar(factura_id, aprobado, aprobador)
+async def decidir_async(factura: FacturaCanonica) -> Decision:
+    try:
+        cerebro = _cerebro()
+    except Exception as error:
+        log.exception("No se pudo iniciar el cerebro")
+        return decision_de_emergencia(factura, error)
+    try:
+        return await cerebro.decidir_async(factura)
+    except Exception as error:
+        return cerebro._emergencia(factura, error)
+
+
+def reanudar(factura_id: str, aprobado: bool, aprobador: str, *, clave_idempotencia: str | None = None) -> Decision:
+    return _cerebro().reanudar(factura_id, aprobado, aprobador, clave_idempotencia=clave_idempotencia)
 
 
 def verificar_cadena() -> tuple[bool, int | None]:
     return _cerebro().verificar_cadena()
+
+
+def paquete_evidencia(factura_id: str) -> dict[str, Any]:
+    return _cerebro().paquete_evidencia(factura_id)
+
+
+def simular_politica(factura: FacturaCanonica | str, cambios: Mapping[str, Any]) -> dict[str, Any]:
+    return _cerebro().simular_politica(factura, cambios)
+

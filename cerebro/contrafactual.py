@@ -13,6 +13,7 @@ from cerebro.contexto import Contexto
 from cerebro.dinero import usd_es
 from cerebro.normalizar import ultimos4
 from cerebro.reglas import Falla, reglas_de_dinero_con
+from cerebro.tipos import tipo_de
 from schemas import Hallazgo
 
 DINERO = frozenset({"limite_pago", "tope_duro", "mensual_proveedor", "mensual_global", "saldo"})
@@ -50,8 +51,10 @@ def _por_hallazgo(h: Hallazgo) -> str:
     if h.agente == "beneficiario":
         return ("el ID fiscal coincidiera con el registrado" if h.campo == "id_fiscal"
                 else "el mensaje no pidiera cambiar los datos de pago")
-    if h.evidencia == "error técnico":
+    if tipo_de(h) == "fallo_tecnico":
         return f"la verificación de {h.agente} no hubiera fallado"
+    if tipo_de(h) == "sin_evidencia":
+        return f"hubiera datos suficientes para que {h.agente} verifique"
     return _POR_AGENTE.get(h.agente, f"se resolviera el hallazgo de {h.agente}")
 
 

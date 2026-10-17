@@ -2,7 +2,12 @@
 
 - `texto_oculto` no vacío → severidad 2 directo, sin modelo.
 - Instrucciones dirigidas a un sistema automático en cualquier texto de la factura → severidad 2.
-  G2 usa patrones deterministas; G3 añade Jev Noul (p ≥ umbral → 2), que solo puede sumar.
+
+Esto es un detector DETERMINISTA de patrones, no un clasificador semántico. Para resistir la
+ofuscación barata, cada texto se revisa en varias variantes normalizadas: NFKC (ancho completo),
+sin caracteres invisibles, sin tildes, letras sueltas reunidas ("i g n o r a") y leetspeak
+("1gn0r4"). Las paráfrasis libres quedan para la capa semántica opcional (cerebro.semantica),
+que solo puede sumar severidad.
 """
 
 from __future__ import annotations
@@ -25,11 +30,22 @@ _PATRONES = [re.compile(p, re.IGNORECASE) for p in (
     r"\b(?:no|sin)\s+(?:escal\w*|fren\w*|verific\w*|revis\w*|valid\w*)\b",
     r"\bmarc\w*\b.{0,20}\b(?:pagad|aprobad|segur|valid)",
     r"<\|[^|]*\|>|\[/?inst\]|###\s*instruction",
+    r"\b(?:sistema|agente|asistente|bot)\s+automatic\w*",
+    r"\b(?:estimad\w*|querid\w*|hola|atencion|dear|hello)\s+(?:\w+\s+){0,2}"
+    r"(?:sistema|agente|asistente|modelo|bot|ia|ai)\b",
 )]
+# Guion suave, espacios de ancho cero, marcas de dirección, separadores invisibles y BOM.
+_INVISIBLES = re.compile("[­​-‏⁠-⁤﻿]")
+_LETRAS_SUELTAS = re.compile(r"\b(?:\w ){2,}\w\b")
+_LEET = str.maketrans("0134578@$", "oieastbas")
 
 
-def _plano(texto: str) -> str:
-    return unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+def _variantes(texto: str) -> list[str]:
+    """Variantes normalizadas del mismo texto; basta con que una coincida."""
+    sin_ocultos = _INVISIBLES.sub("", unicodedata.normalize("NFKC", texto))
+    plano = unicodedata.normalize("NFKD", sin_ocultos).encode("ascii", "ignore").decode()
+    reunido = _LETRAS_SUELTAS.sub(lambda m: m.group(0).replace(" ", ""), plano)
+    return list(dict.fromkeys([plano, reunido, reunido.translate(_LEET)]))
 
 
 def _textos(factura: FacturaCanonica) -> list[tuple[str, str]]:
@@ -38,6 +54,11 @@ def _textos(factura: FacturaCanonica) -> list[tuple[str, str]]:
               ("cuenta_bancaria", factura.cuenta_bancaria or "")]
     campos += [(f"lineas[{i}].descripcion", linea.descripcion) for i, linea in enumerate(factura.lineas)]
     return [(campo, texto) for campo, texto in campos if texto]
+
+
+def _primera_coincidencia(texto: str) -> re.Match[str] | None:
+    return next((m for variante in _variantes(texto) for patron in _PATRONES if (m := patron.search(variante))),
+                None)
 
 
 def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
@@ -49,13 +70,10 @@ def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
                                          "documentos no tienen autoridad.",
                                   evidencia=revelado))
     for campo, texto in _textos(factura):
-        plano = _plano(texto)
-        for patron in _PATRONES:
-            coincidencia = patron.search(plano)
-            if coincidencia:
-                hallazgos.append(Hallazgo(agente=NOMBRE, severidad=2, campo=campo,
-                                          motivo=f"Instrucciones dirigidas al sistema en {campo}: "
-                                                 f"«{coincidencia.group(0)[:80]}». Se ignoran y se frena el pago.",
-                                          evidencia=texto[:300]))
-                break
+        coincidencia = _primera_coincidencia(texto)
+        if coincidencia:
+            hallazgos.append(Hallazgo(agente=NOMBRE, severidad=2, campo=campo,
+                                      motivo=f"Instrucciones dirigidas al sistema en {campo}: "
+                                             f"«{coincidencia.group(0)[:80]}». Se ignoran y se frena el pago.",
+                                      evidencia=texto[:300]))
     return hallazgos

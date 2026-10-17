@@ -9,6 +9,7 @@ from datetime import date
 
 from cerebro.contexto import Contexto
 from cerebro.dinero import a_decimal, numero_es
+from cerebro.tipos import sin_evidencia
 from schemas import FacturaCanonica, Hallazgo
 
 NOMBRE = "presupuesto"
@@ -27,7 +28,8 @@ def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
     try:
         antiguedad = (ctx.ref_date - date.fromisoformat(fx.fecha)).days
     except ValueError:
-        hallazgos.append(_h(f"La tasa {fx.moneda} no tiene una fecha válida ('{fx.fecha}')."))
+        hallazgos.append(sin_evidencia(NOMBRE, f"La tasa {fx.moneda} no tiene una fecha válida ('{fx.fecha}').",
+                                       "moneda"))
     else:
         if antiguedad > MAX_ANTIGUEDAD_FX_DIAS or antiguedad < 0:
             hallazgos.append(_h(f"La tasa {fx.moneda} es del {fx.fecha}: fuera de la ventana de "
