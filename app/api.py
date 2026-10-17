@@ -247,7 +247,9 @@ def crear_app(servicio: Servicio | None = None, ajustes: Ajustes | None = None) 
     async def paquete(op: Annotated[Operador, Depends(exigir("aprobador", "admin"))]) -> dict[str, Any]:
         cuota("paquete:global", ajustes.paquete_por_minuto, 60)
         return {"advertencia": "Plan B: las 6 facturas del paquete del jurado desde datos estructurados del set "
-                               "ficticio (sin extracción ni red). Reproducible: no duplica decisiones.",
+                               "ficticio (sin extracción ni red). No crea pagos ni duplica decisiones, pero el "
+                               "resultado depende del saldo y los límites actuales: úsalo justo después de "
+                               "reiniciar la demo para obtener la matriz del set.",
                 "resultados": await svc.paquete_jurado()}
 
     @app.post("/admin/reiniciar-demo")
