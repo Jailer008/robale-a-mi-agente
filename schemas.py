@@ -45,6 +45,7 @@ class Hallazgo(BaseModel):
     evidencia: str = ""
     campo: str | None = None
     latencia_ms: int = 0
+    codigo: str = ""                               # v2: código estable (CUENTA_NO_REGISTRADA, TOPE_DURO, …)
 
 
 class Decision(BaseModel):
@@ -65,6 +66,9 @@ class Decision(BaseModel):
     version_reglas: str
     aprobador: str | None = None
     aprobado: bool | None = None
+    codigo_principal: str = "OK"                   # v2
+    aprobable: bool = False                        # v2: solo True si ESCALAR sin reglas de FRENAR
+    accion_requerida: str | None = None            # v2: p. ej. "verificar por teléfono"
     ts: datetime
     hash_prev: str
     hash: str
