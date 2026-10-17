@@ -10,11 +10,11 @@ import threading
 from pathlib import Path
 
 import pytest
-from cerebro.agregador import agregar
 from cerebro_util import ESPERADO, ORDEN, factura, nueva_cerebro, variante
 from conftest import DATOS, RAIZ
 
 import cerebro
+from cerebro.agregador import agregar
 from cerebro.reglas import Falla
 from schemas import Decision, Hallazgo
 
