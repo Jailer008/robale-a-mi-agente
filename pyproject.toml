@@ -1,0 +1,45 @@
+[project]
+name = "robale-a-mi-agente"
+version = "0.1.0"
+description = "Reto Blinka · Hackathon 30X: agente de cuentas por pagar que no se deja robar"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "pymupdf>=1.24",
+    "pillow>=10.0",
+    "weasyprint>=62",
+    "google-genai>=1.0",
+    "anthropic>=1.0",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "bandit>=1.7",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "live: llama a APIs reales; se salta si faltan claves",
+]
+addopts = "-m 'not live'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]  # assert en tests
+
+[tool.ruff.lint.per-file-ignores]
+"schemas.py" = ["E501"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]

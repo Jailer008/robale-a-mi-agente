@@ -1,0 +1,12 @@
+empresa: Andes Labs LLC
+moneda_base: USD
+limite_pago_usd: 5000            # hasta aquí paga solo
+tope_duro_usd: 15000             # por encima: FRENAR siempre, ni con humano
+limite_mensual_proveedor_usd: 10000
+limite_mensual_global_usd: 40000
+saldo_disponible_usd: 25000
+tolerancia_contrato: 0.05        # 5 % en precio o cantidad por línea
+tolerancia_fx: 0.03              # desviación vs tasa del contrato
+umbral_sospecha: 0.25            # prob. de Jev desde la que se escala
+ventana_duplicados_dias: 15
+tolerancia_monto_duplicado: 0.02
