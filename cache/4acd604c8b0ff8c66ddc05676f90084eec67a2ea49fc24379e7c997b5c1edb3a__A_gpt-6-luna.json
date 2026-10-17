@@ -1,0 +1,21 @@
+{
+  "proveedor": "Inca Analytics SAC",
+  "id_fiscal": "20600000111",
+  "cuenta_bancaria": "PE-BANCO-0388",
+  "numero_factura": "INCA-0712",
+  "fecha_emision": "2026-10-14",
+  "fecha_vencimiento": "2026-11-13",
+  "moneda": "PEN",
+  "lineas": [
+    {
+      "descripcion": "Análisis de datos por hora",
+      "cantidad": 3.0,
+      "precio_unitario": 170.0,
+      "total": 510.0
+    }
+  ],
+  "subtotal": 510.0,
+  "impuestos": 0.0,
+  "total": 510.0,
+  "referencia_contrato": "CT-007"
+}

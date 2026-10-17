@@ -1,0 +1,27 @@
+{
+  "proveedor": "Nubia Studio SAS",
+  "id_fiscal": "901.234.567-1",
+  "cuenta_bancaria": "CO-BANCO-0423",
+  "numero_factura": "NS-2026-0148",
+  "fecha_emision": "2026-10-15",
+  "fecha_vencimiento": "2026-11-14",
+  "moneda": "USD",
+  "lineas": [
+    {
+      "descripcion": "Prototipo navegable en Figma",
+      "cantidad": 1.0,
+      "precio_unitario": 300.0,
+      "total": 300.0
+    },
+    {
+      "descripcion": "Diseño UX por hora",
+      "cantidad": 20.0,
+      "precio_unitario": 65.0,
+      "total": 1300.0
+    }
+  ],
+  "subtotal": 1600.0,
+  "impuestos": 0.0,
+  "total": 1600.0,
+  "referencia_contrato": "CT-001"
+}

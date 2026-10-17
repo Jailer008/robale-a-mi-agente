@@ -1,0 +1,21 @@
+{
+  "proveedor": "Pampa Code SRL",
+  "id_fiscal": null,
+  "cuenta_bancaria": null,
+  "numero_factura": "PC-0001-00004530",
+  "fecha_emision": null,
+  "fecha_vencimiento": null,
+  "moneda": "ARS",
+  "lineas": [
+    {
+      "descripcion": "",
+      "cantidad": null,
+      "precio_unitario": null,
+      "total": 100000.0
+    }
+  ],
+  "subtotal": 100000.0,
+  "impuestos": 0.0,
+  "total": 100000.0,
+  "referencia_contrato": null
+}

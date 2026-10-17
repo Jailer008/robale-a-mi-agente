@@ -6,7 +6,8 @@
 *.key
 
 # Estado local
-cache/
+# cache/ SÍ se versiona: trae las respuestas de los extractores para las 15 facturas
+# del set (DEMO_CACHE=1), así la demo no depende de la red.
 entrada/
 *.db
 *.sqlite3

@@ -1,0 +1,27 @@
+{
+  "proveedor": "Cóndor Cloud SAS",
+  "id_fiscal": "901.555.010-3",
+  "cuenta_bancaria": "CO-BANCO-1187",
+  "numero_factura": "CC-88240",
+  "fecha_emision": "2026-10-16",
+  "fecha_vencimiento": "2026-11-15",
+  "moneda": "COP",
+  "lineas": [
+    {
+      "descripcion": "Hosting administrado mensual",
+      "cantidad": 1.0,
+      "precio_unitario": 400000.0,
+      "total": 400000.0
+    },
+    {
+      "descripcion": "Soporte técnico por hora",
+      "cantidad": 4.0,
+      "precio_unitario": 100000.0,
+      "total": 400000.0
+    }
+  ],
+  "subtotal": 800000.0,
+  "impuestos": 152000.0,
+  "total": 952000.0,
+  "referencia_contrato": "CT-002"
+}

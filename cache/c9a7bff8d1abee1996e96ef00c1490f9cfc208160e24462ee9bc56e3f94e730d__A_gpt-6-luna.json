@@ -1,0 +1,21 @@
+{
+  "proveedor": "Tango QA SRL",
+  "id_fiscal": "30-70000222-4",
+  "cuenta_bancaria": "AR-BANCO-9015",
+  "numero_factura": "FV-0192",
+  "fecha_emision": "2026-09-28",
+  "fecha_vencimiento": "2026-10-28",
+  "moneda": "USD",
+  "lineas": [
+    {
+      "descripcion": "Pruebas QA manuales por hora",
+      "cantidad": 50.0,
+      "precio_unitario": 37.0,
+      "total": 1850.0
+    }
+  ],
+  "subtotal": 1850.0,
+  "impuestos": 0.0,
+  "total": 1850.0,
+  "referencia_contrato": "CT-006"
+}

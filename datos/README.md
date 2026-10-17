@@ -35,6 +35,18 @@ pagar las limpias) sin tocar el tope duro ni el límite mensual del proveedor. L
 (USD 7.400) sí cabe en el saldo que queda tras pagar las 6 limpias (USD 7.477,34), así que
 solo escala por el límite por pago.
 
+## Caché de demo
+
+`cache/` (en la raíz) guarda las respuestas de GPT-6 Luna (A) y Claude Haiku 5.5 (B) para
+las 15 facturas, por SHA-256 del documento. Con `DEMO_CACHE=1`, `extraer()` responde desde
+ahí sin llamar a ningún modelo; las facturas nuevas (por ejemplo, las del jurado) sí llaman a
+los modelos y se agregan a la caché. La clave incluye el nombre del extractor: si cambia
+`EXTRACTORES` o el modelo, hay que volver a llenarla con
+`DEMO_CACHE=1 uv run python -m extraccion.medir`.
+
+Resultado de la medición real (2026-10-17, `resultados_extraccion.json`): 15/15 con
+`extraccion_ok` correcto, las 14 legibles perfectas en todos los campos, 3–5 s por factura.
+
 ## Regenerar los documentos
 
 Necesita WeasyPrint (en WSL):

@@ -1,0 +1,21 @@
+{
+  "proveedor": "Nubia Studio SAS",
+  "id_fiscal": "901.234.567-1",
+  "cuenta_bancaria": "CO-BANCO-7781",
+  "numero_factura": "NS-2026-0147",
+  "fecha_emision": "2026-10-16",
+  "fecha_vencimiento": "2026-11-15",
+  "moneda": "USD",
+  "lineas": [
+    {
+      "descripcion": "Diseño UX por hora",
+      "cantidad": 16.0,
+      "precio_unitario": 50.0,
+      "total": 800.0
+    }
+  ],
+  "subtotal": 800.0,
+  "impuestos": 0.0,
+  "total": 800.0,
+  "referencia_contrato": "CT-001"
+}

@@ -1,0 +1,161 @@
+{
+  "n": 15,
+  "acierto": {
+    "proveedor": 0.9333333333333333,
+    "id_fiscal": 0.9333333333333333,
+    "cuenta_bancaria": 0.9333333333333333,
+    "numero_factura": 0.9333333333333333,
+    "fecha_emision": 0.9333333333333333,
+    "fecha_vencimiento": 0.9333333333333333,
+    "moneda": 0.9333333333333333,
+    "subtotal": 0.9333333333333333,
+    "impuestos": 1.0,
+    "total": 0.9333333333333333,
+    "referencia_contrato": 0.9333333333333333,
+    "lineas": 0.9333333333333333
+  },
+  "fallos": {
+    "proveedor": [
+      "datos/facturas/15_borrosa.jpg"
+    ],
+    "id_fiscal": [
+      "datos/facturas/15_borrosa.jpg"
+    ],
+    "cuenta_bancaria": [
+      "datos/facturas/15_borrosa.jpg"
+    ],
+    "numero_factura": [
+      "datos/facturas/15_borrosa.jpg"
+    ],
+    "fecha_emision": [
+      "datos/facturas/15_borrosa.jpg"
+    ],
+    "fecha_vencimiento": [
+      "datos/facturas/15_borrosa.jpg"
+    ],
+    "moneda": [
+      "datos/facturas/15_borrosa.jpg"
+    ],
+    "subtotal": [
+      "datos/facturas/15_borrosa.jpg"
+    ],
+    "impuestos": [],
+    "total": [
+      "datos/facturas/15_borrosa.jpg"
+    ],
+    "referencia_contrato": [
+      "datos/facturas/15_borrosa.jpg"
+    ],
+    "lineas": [
+      "datos/facturas/15_borrosa.jpg"
+    ]
+  },
+  "extraccion_ok_correcta": 1.0,
+  "texto_oculto_correcto": 1.0,
+  "detalle": [
+    {
+      "archivo": "datos/facturas/01_limpia.pdf",
+      "ms": 5242,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/02_limpia.png",
+      "ms": 4346,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/03_limpia.eml",
+      "ms": 4715,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/04_limpia_chat.txt",
+      "ms": 2448,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/05_limpia.pdf",
+      "ms": 4072,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/06_limpia.pdf",
+      "ms": 3767,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/07_duplicado_exacto.pdf",
+      "ms": 3054,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/08_duplicado_disfrazado.pdf",
+      "ms": 3816,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/09_proveedor_nuevo.pdf",
+      "ms": 3459,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/10_cambio_cuenta.eml",
+      "ms": 3195,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/11_tarifa_inflada.pdf",
+      "ms": 3694,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/12_monto_alto.pdf",
+      "ms": 3015,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/13_sin_saldo.pdf",
+      "ms": 3476,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/14_inyeccion.pdf",
+      "ms": 4088,
+      "extraccion_ok": true,
+      "diferencias": []
+    },
+    {
+      "archivo": "datos/facturas/15_borrosa.jpg",
+      "ms": 9819,
+      "extraccion_ok": false,
+      "diferencias": [
+        "Extractor A leyó (vacío) y B leyó 100.000 en el total",
+        "Extractor A leyó (vacío) y B leyó 'ARS' en la moneda",
+        "Extractor A leyó 'Phoenix Cable S.A.' y B leyó 'Pampa Code SRL' en el proveedor",
+        "Extractor A leyó (vacío) y B leyó 'PC-0001-00004530' en el número de factura",
+        "No se pudo leer el número de factura",
+        "No se pudo leer la moneda",
+        "No se pudo leer el total",
+        "No se pudo leer la fecha de emisión",
+        "Línea 1 incompleta: falta cantidad, precio_unitario, total",
+        "No se pudo leer el subtotal",
+        "El total debe ser mayor que cero",
+        "Moneda '' no válida; se aceptan ARS, COP, EUR, MXN, PEN, USD",
+        "La imagen está borrosa (nitidez 368 < 600): la extracción no es confiable."
+      ]
+    }
+  ]
+}

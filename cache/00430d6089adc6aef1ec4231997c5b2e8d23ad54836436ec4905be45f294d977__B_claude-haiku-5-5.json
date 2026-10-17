@@ -1,0 +1,27 @@
+{
+  "proveedor": "Azteca Data SA de CV",
+  "id_fiscal": "ADA200101XX1",
+  "cuenta_bancaria": "MX-BANCO-5530",
+  "numero_factura": "AZD-3301",
+  "fecha_emision": "2026-10-13",
+  "fecha_vencimiento": "2026-11-12",
+  "moneda": "MXN",
+  "lineas": [
+    {
+      "descripcion": "Limpieza de datos por hora",
+      "cantidad": 3.0,
+      "precio_unitario": 600.0,
+      "total": 1800.0
+    },
+    {
+      "descripcion": "Reporte mensual de calidad de datos",
+      "cantidad": 1.0,
+      "precio_unitario": 1200.0,
+      "total": 1200.0
+    }
+  ],
+  "subtotal": 3000.0,
+  "impuestos": 0.0,
+  "total": 3000.0,
+  "referencia_contrato": "CT-003"
+}

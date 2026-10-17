@@ -1,0 +1,21 @@
+{
+  "proveedor": "Phoenix Cable S.A.",
+  "id_fiscal": null,
+  "cuenta_bancaria": null,
+  "numero_factura": null,
+  "fecha_emision": null,
+  "fecha_vencimiento": null,
+  "moneda": null,
+  "lineas": [
+    {
+      "descripcion": "",
+      "cantidad": null,
+      "precio_unitario": null,
+      "total": null
+    }
+  ],
+  "subtotal": null,
+  "impuestos": null,
+  "total": null,
+  "referencia_contrato": null
+}
