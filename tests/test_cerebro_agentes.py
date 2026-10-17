@@ -38,6 +38,7 @@ def test_08_duplicado_disfrazado_escala(cerebro):
     hallazgos = revisar(duplicados, cerebro, factura("08"))
     assert hallazgos and max(h.severidad for h in hallazgos) == 1
     assert "FV-0192" in hallazgos[0].motivo
+    assert "y 1 día de diferencia." in hallazgos[0].motivo          # 2026-10-02 vs 2026-10-03, en singular
 
 
 def test_mismo_numero_con_otro_monto_escala(cerebro):

@@ -52,7 +52,7 @@ def revisar(factura: FacturaCanonica, ctx: Contexto) -> list[Hallazgo]:
                 agente=NOMBRE, severidad=1, campo="total",
                 motivo=f"Posible duplicado disfrazado de {pago.numero_factura}: otro número, mismo proveedor, "
                        f"monto {monto_es(ctx.monto_original, moneda)} vs {monto_es(monto_previo, pago.moneda)} "
-                       f"y {dias} días de diferencia.",
+                       f"y {dias} día{'' if dias == 1 else 's'} de diferencia.",
                 evidencia=f"pago={pago.factura_id}",
             ))
     return hallazgos
