@@ -59,7 +59,8 @@ def rayon_sobre(ruta, texto: str | None) -> bytes:
     with pymupdf.open(ruta) as doc:
         pagina = doc[0]
         escala = 120 / 72
-        lienzo = Image.new("RGBA", (round(pagina.rect.width * escala), round(pagina.rect.height * escala)), (0, 0, 0, 0))
+        tamano = (round(pagina.rect.width * escala), round(pagina.rect.height * escala))
+        lienzo = Image.new("RGBA", tamano, (0, 0, 0, 0))
         if texto:
             r = pagina.search_for(texto)[0]
             caja = [r.x0 * escala - 6, r.y0 * escala - 4, r.x1 * escala + 6, r.y1 * escala + 4]

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<!-- Plantilla del modo en vivo (Jinja2, autoescape activo: el jurado escribe texto libre).
+     Variables: proveedor, id_fiscal, pais, numero, fecha_emision, fecha_vencimiento, moneda,
+     lineas[], subtotal, impuestos, total, cuenta, referencia_contrato, nota_visible, nota_oculta.
+     Montos siempre con el filtro |monto (1,200.00) para que el extractor no dude. -->
+<style>
+  @page { size: A4; margin: 16mm 18mm; }
+  body { font-family: 'DejaVu Sans', sans-serif; font-size: 11pt; color: #1f2328; }
+  header { border-bottom: 3px solid #2f4f8f; padding-bottom: 8px; margin-bottom: 14px; }
+  h1 { font-size: 18pt; color: #2f4f8f; margin: 0 0 4px; }
+  header p { margin: 2px 0; font-size: 10pt; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th { background: #e9eef8; text-align: left; padding: 6px; font-size: 10pt; }
+  td { border-bottom: 1px solid #d0d7de; padding: 6px; font-size: 11pt; }
+  .num { text-align: right; }
+  .totales { margin-top: 12px; text-align: right; font-size: 11pt; line-height: 1.6; }
+  .total { font-size: 15pt; font-weight: bold; }
+  .pago { margin-top: 18px; padding: 10px; background: #f6f8fa; font-size: 12pt; }
+  .obs { margin-top: 14px; padding: 10px; border: 1px solid #d0d7de; font-size: 11pt; }
+  .pie { margin-top: 28px; font-size: 7pt; color: #6e7781; }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{ proveedor }}</h1>
+  <p>NIT/RFC/CUIT/RUC: {{ id_fiscal }} · {{ pais }}</p>
+  <p>Factura N.º <b>{{ numero }}</b> · Emisión {{ fecha_emision }} · Vence {{ fecha_vencimiento }}</p>
+  <p>Facturar a: Andes Labs LLC · Contrato {{ referencia_contrato }}</p>
+</header>
+
+<table>
+  <tr><th>Descripción</th><th class="num">Cantidad</th>
+      <th class="num">Precio unitario ({{ moneda }})</th><th class="num">Total ({{ moneda }})</th></tr>
+  {% for l in lineas %}
+  <tr><td>{{ l.descripcion }}</td><td class="num">{{ l.cantidad|cantidad }}</td>
+      <td class="num">{{ l.precio_unitario|monto }}</td><td class="num">{{ l.total|monto }}</td></tr>
+  {% endfor %}
+</table>
+
+<section class="totales">
+  Subtotal {{ moneda }} {{ subtotal|monto }}<br>
+  Impuestos {{ moneda }} {{ impuestos|monto }}<br>
+  <span class="total">TOTAL {{ moneda }} {{ total|monto }}</span>
+</section>
+
+<section class="pago">Pagar a la cuenta: <b>{{ cuenta }}</b></section>
+
+{% if nota_visible %}<section class="obs">Observaciones: {{ nota_visible }}</section>{% endif %}
+{% if nota_oculta %}<div><span style="color:#ffffff;font-size:1pt">{{ nota_oculta }}</span></div>{% endif %}
+
+<div class="pie">Documento ficticio generado para el Hackathon 30X. No corresponde a ninguna empresa real.</div>
+</body>
+</html>

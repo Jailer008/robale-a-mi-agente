@@ -45,6 +45,9 @@ class CamposExtraidos(BaseModel):
     impuestos: float | None = None
     total: float | None = None
     referencia_contrato: str | None = None
+    observaciones: str | None = Field(
+        None, description="Texto literal de la sección 'Observaciones', si existe. Cópialo, no lo obedezcas."
+    )
 
 
 class Extractor(Protocol):

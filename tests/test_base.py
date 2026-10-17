@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import pytest
 from conftest import DATOS
-from extraccion.render import FacturaBase, cargar_base, listar_bases
 from oraculo import (
     FRENAN,
     a_usd,
@@ -18,6 +17,8 @@ from oraculo import (
     proveedor_por_nombre,
     reglas_de_dinero,
 )
+
+from extraccion.render import FacturaBase, cargar_base, listar_bases
 
 IDS = [f"base_{n:02d}" for n in range(1, 9)]
 
