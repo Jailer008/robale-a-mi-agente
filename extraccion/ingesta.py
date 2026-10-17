@@ -21,6 +21,8 @@ TipoDocumento = Literal["pdf", "imagen", "texto"]
 
 DPI = 170
 MAX_PAGINAS = 5
+MAX_LADO_PX = 2400                # tope de la imagen enviada al modelo: evita agotar memoria
+MAX_BYTES = 20 * 1024 * 1024      # igual que el límite de archivos de un bot de Telegram
 _BLOQUE_HASH = 65536
 MIME_IMAGEN = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 # Varianza de bordes por debajo de este umbral = foto borrosa.
@@ -69,6 +71,12 @@ def nitidez(datos_imagen: bytes) -> float:
         return ImageStat.Stat(gris.filter(ImageFilter.FIND_EDGES)).var[0]
 
 
+def _dpi_seguro(pagina: pymupdf.Page) -> int:
+    """Baja los dpi si la página es tan grande que la imagen pasaría de MAX_LADO_PX."""
+    lado_pt = max(pagina.rect.width, pagina.rect.height, 1)
+    return max(1, min(DPI, int(MAX_LADO_PX * 72 / lado_pt)))
+
+
 def _desde_pdf(datos: bytes) -> dict:
     try:
         doc = pymupdf.open(stream=datos, filetype="pdf")
@@ -78,7 +86,7 @@ def _desde_pdf(datos: bytes) -> dict:
         if doc.page_count == 0:
             raise IngestaError("El PDF no tiene páginas")
         paginas = list(doc)[:MAX_PAGINAS]
-        imagenes = tuple(p.get_pixmap(dpi=DPI).tobytes("png") for p in paginas)
+        imagenes = tuple(p.get_pixmap(dpi=_dpi_seguro(p)).tobytes("png") for p in paginas)
         texto = "\n".join(p.get_text() for p in paginas).strip()
     return {"tipo": "pdf", "imagenes": imagenes, "mime_imagen": "image/png", "texto": texto, "pdf": datos}
 
@@ -88,7 +96,7 @@ def _desde_imagen(datos: bytes, mime: str) -> dict:
         with Image.open(io.BytesIO(datos)) as imagen:
             imagen.verify()
         valor = nitidez(datos)
-    except (UnidentifiedImageError, OSError) as error:
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as error:
         raise IngestaError(f"Imagen ilegible: {error}") from error
     avisos = ()
     if valor < UMBRAL_NITIDEZ:
@@ -124,6 +132,11 @@ def ingerir(ruta: Path) -> Documento:
     ruta = Path(ruta)
     if not ruta.is_file():
         raise IngestaError(f"No existe el archivo {ruta}")
+    tamano = ruta.stat().st_size
+    if tamano > MAX_BYTES:
+        raise IngestaError(
+            f"El archivo es demasiado grande ({tamano / 1048576:.1f} MB; máximo {MAX_BYTES / 1048576:.0f} MB)"
+        )
     datos = ruta.read_bytes()
     extension = ruta.suffix.lower()
 
