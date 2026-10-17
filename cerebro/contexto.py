@@ -79,6 +79,9 @@ class Contexto:
     extraccion_ok: bool
     pagos: tuple[Pago, ...] = ()
     problemas: list[str] = field(default_factory=list)
+    nombre_factura: str = ""
+    cuenta_factura: str | None = None
+    diferencias: tuple[str, ...] = ()
 
 
 def _mismo_mes(a: date, b: date) -> bool:
@@ -162,4 +165,7 @@ def construir_contexto(factura: FacturaCanonica, con: sqlite3.Connection, catalo
         extraccion_ok=bool(factura.extraccion_ok),
         pagos=pagos,
         problemas=problemas,
+        nombre_factura=factura.proveedor.strip(),
+        cuenta_factura=factura.cuenta_bancaria,
+        diferencias=tuple(factura.diferencias),
     )

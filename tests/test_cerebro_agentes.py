@@ -8,8 +8,7 @@ from decimal import Decimal
 import pytest
 from cerebro_util import ORDEN, factura, nueva_cerebro, variante
 
-from cerebro.agentes import AGENTES, ejecutar_agentes
-from cerebro.agentes import beneficiario, contrato, duplicados, presupuesto, seguridad
+from cerebro.agentes import AGENTES, beneficiario, contrato, duplicados, ejecutar_agentes, presupuesto, seguridad
 from schemas import Hallazgo
 
 
