@@ -291,3 +291,35 @@ def test_transporte_rechaza_otro_destino():
 
     with pytest.raises(ErrorJev):
         transporte_urllib("https://evil.com/api/alpha/decisions", b"{}", {"Authorization": f"Bearer {CLAVE}"}, 1.0)
+
+
+# ---------- prueba LIVE mínima: python -m cerebro.semantica --prueba-jev ----------
+
+def test_prueba_jev_sin_confirmar_no_llama(entorno_jev, capsys, monkeypatch):
+    from cerebro import semantica
+
+    monkeypatch.setattr(semantica.CapaJev, "probabilidad", lambda *a, **k: pytest.fail("no debía llamar"))
+    assert semantica.main(["--prueba-jev"]) == 2
+    salida = capsys.readouterr().out
+    assert "--confirmar-costo" in salida and CLAVE not in salida
+
+
+def test_prueba_jev_sin_clave_no_llama(entorno_jev, capsys):
+    from cerebro import semantica
+
+    entorno_jev.delenv("OPENROUTER_API_KEY")
+    assert semantica.main(["--prueba-jev", "--confirmar-costo"]) == 2
+    assert "OPENROUTER_API_KEY" in capsys.readouterr().out
+
+
+def test_prueba_jev_confirmada_hace_una_sola_llamada(entorno_jev, capsys, monkeypatch):
+    from cerebro import semantica
+
+    t = Transporte({INSTRUCCIONES: 0.97})
+    original = semantica.CapaJev.__init__
+    monkeypatch.setattr(semantica.CapaJev, "__init__",
+                        lambda self, **kw: original(self, **{**kw, "transporte": t}))
+    assert semantica.main(["--prueba-jev", "--confirmar-costo"]) == 0
+    salida = capsys.readouterr().out
+    assert len(t.solicitudes) == 1 and "0.97" in salida and "typesafe/jev-1.13" in salida and "USD" in salida
+    assert CLAVE not in salida
