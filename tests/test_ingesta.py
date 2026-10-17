@@ -98,6 +98,41 @@ def test_entradas_invalidas_lanzan_ingesta_error(tmp_path, nombre, contenido):
         ingerir(archivo)
 
 
+def test_archivo_demasiado_grande(tmp_path, monkeypatch):
+    import extraccion.ingesta as ingesta
+
+    monkeypatch.setattr(ingesta, "MAX_BYTES", 1000)
+    archivo = tmp_path / "grande.txt"
+    archivo.write_bytes(b"a" * 1001)
+    with pytest.raises(IngestaError, match="grande"):
+        ingerir(archivo)
+
+
+def test_pagina_gigante_no_revienta_la_memoria(tmp_path):
+    import pymupdf
+
+    from extraccion.ingesta import MAX_LADO_PX
+
+    doc = pymupdf.open()
+    doc.new_page(width=14400, height=14400).insert_text((100, 100), "Factura F-1", fontsize=40)
+    archivo = tmp_path / "gigante.pdf"
+    doc.save(archivo)
+    imagen = ingerir(archivo).imagenes[0]
+    ancho = int.from_bytes(imagen[16:20], "big")
+    alto = int.from_bytes(imagen[20:24], "big")
+    assert max(ancho, alto) <= MAX_LADO_PX
+
+
+def test_bomba_de_descompresion(tmp_path, monkeypatch):
+    from PIL import Image
+
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 100)
+    archivo = tmp_path / "bomba.png"
+    Image.new("L", (400, 400)).save(archivo)
+    with pytest.raises(IngestaError):
+        ingerir(archivo)
+
+
 def test_archivo_inexistente(tmp_path):
     with pytest.raises(IngestaError):
         ingerir(tmp_path / "no_existe.pdf")
