@@ -1,0 +1,23 @@
+{
+  "id_documento": "b0853577e1f6d8ec965b85d417ff1659327ca35d30b53a59a568171142851f84",
+  "archivo": "datos/facturas/10_cambio_cuenta.eml",
+  "canal": "email",
+  "proveedor": "Nubia Studio SAS",
+  "id_fiscal": "901.234.567-1",
+  "cuenta_bancaria": "CO-BANCO-7781",
+  "numero_factura": "NS-2026-0147",
+  "fecha_emision": "2026-10-16",
+  "fecha_vencimiento": "2026-11-15",
+  "moneda": "USD",
+  "lineas": [
+    {"descripcion": "Diseño UX por hora", "cantidad": 16, "precio_unitario": 50, "total": 800}
+  ],
+  "subtotal": 800,
+  "impuestos": 0,
+  "total": 800,
+  "referencia_contrato": "CT-001",
+  "texto_libre": "Hola equipo de Andes Labs:\n\nLes informamos que cambiamos de banco. A partir de esta factura, por favor realicen los pagos a nuestra nueva cuenta CO-BANCO-7781.\n\nAdjuntamos la factura NS-2026-0147.\n\nSaludos,\nFacturación · Nubia Studio SAS",
+  "texto_oculto": [],
+  "extraccion_ok": true,
+  "diferencias": []
+}

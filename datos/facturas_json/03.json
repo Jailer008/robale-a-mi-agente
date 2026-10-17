@@ -1,0 +1,24 @@
+{
+  "id_documento": "7c46ad8cf9e1355f177d7422b783d1227138b400f74d04d0ec00c5606085c322",
+  "archivo": "datos/facturas/03_limpia.eml",
+  "canal": "email",
+  "proveedor": "Cóndor Cloud SAS",
+  "id_fiscal": "901.555.010-3",
+  "cuenta_bancaria": "CO-BANCO-1187",
+  "numero_factura": "CC-88213",
+  "fecha_emision": "2026-10-13",
+  "fecha_vencimiento": "2026-11-12",
+  "moneda": "COP",
+  "lineas": [
+    {"descripcion": "Hosting administrado mensual", "cantidad": 1, "precio_unitario": 400000, "total": 400000},
+    {"descripcion": "Soporte técnico por hora", "cantidad": 2, "precio_unitario": 100000, "total": 200000}
+  ],
+  "subtotal": 600000,
+  "impuestos": 114000,
+  "total": 714000,
+  "referencia_contrato": "CT-002",
+  "texto_libre": "Hola equipo de Andes Labs:\n\nAdjuntamos la factura CC-88213 por el hosting y el soporte de octubre.\n\nSaludos,\nFacturación · Cóndor Cloud SAS",
+  "texto_oculto": [],
+  "extraccion_ok": true,
+  "diferencias": []
+}

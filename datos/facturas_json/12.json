@@ -1,0 +1,23 @@
+{
+  "id_documento": "bc9fd9b2aecda1584c66b53a39b7714a17c8fd37356a16b9ccf4549fef0636c6",
+  "archivo": "datos/facturas/12_monto_alto.pdf",
+  "canal": "web",
+  "proveedor": "Quetzal Labs SA de CV",
+  "id_fiscal": "QLA190615XX2",
+  "cuenta_bancaria": "MX-BANCO-2214",
+  "numero_factura": "QL-1109",
+  "fecha_emision": "2026-10-16",
+  "fecha_vencimiento": "2026-11-15",
+  "moneda": "USD",
+  "lineas": [
+    {"descripcion": "Desarrollo backend por hora", "cantidad": 185, "precio_unitario": 40, "total": 7400}
+  ],
+  "subtotal": 7400,
+  "impuestos": 0,
+  "total": 7400,
+  "referencia_contrato": "CT-004",
+  "texto_libre": "",
+  "texto_oculto": [],
+  "extraccion_ok": true,
+  "diferencias": []
+}

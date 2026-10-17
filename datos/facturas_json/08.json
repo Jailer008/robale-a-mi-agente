@@ -1,0 +1,23 @@
+{
+  "id_documento": "c277e791b9220eccab5919007ce3ee266f5977de07d840852756b8f0043aeb2d",
+  "archivo": "datos/facturas/08_duplicado_disfrazado.pdf",
+  "canal": "web",
+  "proveedor": "Tango QA SRL",
+  "id_fiscal": "30-70000222-4",
+  "cuenta_bancaria": "AR-BANCO-9015",
+  "numero_factura": "TQA-2026-0203",
+  "fecha_emision": "2026-10-03",
+  "fecha_vencimiento": "2026-11-02",
+  "moneda": "USD",
+  "lineas": [
+    {"descripcion": "Horas de testing manual", "cantidad": 50, "precio_unitario": 37, "total": 1850}
+  ],
+  "subtotal": 1850,
+  "impuestos": 0,
+  "total": 1850,
+  "referencia_contrato": "CT-006",
+  "texto_libre": "",
+  "texto_oculto": [],
+  "extraccion_ok": true,
+  "diferencias": []
+}

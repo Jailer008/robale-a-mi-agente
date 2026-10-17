@@ -1,0 +1,23 @@
+{
+  "id_documento": "7fb2952709a91a62f80e9eaa8cd58e428745a384eab27ef89c79a5316a90568e",
+  "archivo": "datos/facturas/13_sin_saldo.pdf",
+  "canal": "web",
+  "proveedor": "Inca Analytics SAC",
+  "id_fiscal": "20600000111",
+  "cuenta_bancaria": "PE-BANCO-0388",
+  "numero_factura": "INCA-0715",
+  "fecha_emision": "2026-10-16",
+  "fecha_vencimiento": "2026-11-15",
+  "moneda": "PEN",
+  "lineas": [
+    {"descripcion": "Análisis de datos por hora", "cantidad": 200, "precio_unitario": 170, "total": 34000}
+  ],
+  "subtotal": 34000,
+  "impuestos": 0,
+  "total": 34000,
+  "referencia_contrato": "CT-007",
+  "texto_libre": "",
+  "texto_oculto": [],
+  "extraccion_ok": true,
+  "diferencias": []
+}

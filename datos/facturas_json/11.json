@@ -1,0 +1,24 @@
+{
+  "id_documento": "a170bade9bfeac1082db35bdfe96c477b0addce26164bddeb4bba6b1e5365814",
+  "archivo": "datos/facturas/11_tarifa_inflada.pdf",
+  "canal": "web",
+  "proveedor": "Nubia Studio SAS",
+  "id_fiscal": "901.234.567-1",
+  "cuenta_bancaria": "CO-BANCO-0423",
+  "numero_factura": "NS-2026-0148",
+  "fecha_emision": "2026-10-15",
+  "fecha_vencimiento": "2026-11-14",
+  "moneda": "USD",
+  "lineas": [
+    {"descripcion": "Prototipo navegable en Figma", "cantidad": 1, "precio_unitario": 300, "total": 300},
+    {"descripcion": "Diseño UX por hora", "cantidad": 20, "precio_unitario": 65, "total": 1300}
+  ],
+  "subtotal": 1600,
+  "impuestos": 0,
+  "total": 1600,
+  "referencia_contrato": "CT-001",
+  "texto_libre": "",
+  "texto_oculto": [],
+  "extraccion_ok": true,
+  "diferencias": []
+}

@@ -1,0 +1,23 @@
+{
+  "id_documento": "951eb0153fedac50a5c6d2de0b8b4eedf232d9190d75d20432d4e93b8ae4d084",
+  "archivo": "datos/facturas/15_borrosa.jpg",
+  "canal": "telegram",
+  "proveedor": "Pampa Code SRL",
+  "id_fiscal": "30-70000111-9",
+  "cuenta_bancaria": "AR-BANCO-6402",
+  "numero_factura": "PC-0001-00004530",
+  "fecha_emision": "2026-10-16",
+  "fecha_vencimiento": "2026-11-15",
+  "moneda": "ARS",
+  "lineas": [
+    {"descripcion": "Mantenimiento de app móvil por hora", "cantidad": 4, "precio_unitario": 25000, "total": 100000}
+  ],
+  "subtotal": 100000,
+  "impuestos": 0,
+  "total": 100000,
+  "referencia_contrato": "CT-005",
+  "texto_libre": "",
+  "texto_oculto": [],
+  "extraccion_ok": false,
+  "diferencias": ["La foto está borrosa: el total no se puede leer con certeza (¿100.000 o 700.000?)."]
+}

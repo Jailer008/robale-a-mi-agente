@@ -1,0 +1,21 @@
+# Tasas FICTICIAS. monto_usd = monto / unidades_por_usd
+USD:
+  unidades_por_usd: 1
+  fuente: "Moneda base"
+  fecha: 2026-10-16
+COP:
+  unidades_por_usd: 4000
+  fuente: "Banco Central Imaginario (tasa de referencia ficticia)"
+  fecha: 2026-10-16
+MXN:
+  unidades_por_usd: 18.5
+  fuente: "Banco Central Imaginario (tasa de referencia ficticia)"
+  fecha: 2026-10-16
+ARS:
+  unidades_por_usd: 1200
+  fuente: "Banco Central Imaginario (tasa de referencia ficticia)"
+  fecha: 2026-10-16
+PEN:
+  unidades_por_usd: 3.75
+  fuente: "Banco Central Imaginario (tasa de referencia ficticia)"
+  fecha: 2026-10-16

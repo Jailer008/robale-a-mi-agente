@@ -1,0 +1,104 @@
+# Un contrato por proveedor permitido. Las facturas en regla usan exactamente
+# estas descripciones y precios; tasa_pactada_por_usd sirve al agente Presupuesto/FX.
+- id: CT-001
+  proveedor: Nubia Studio SAS
+  moneda: USD
+  items:
+    - id: I1
+      descripcion: Diseño UX por hora
+      precio_unitario: 50
+      unidad: hora
+    - id: I2
+      descripcion: Prototipo navegable en Figma
+      precio_unitario: 300
+      unidad: entregable
+    - id: I3
+      descripcion: Prueba de usabilidad
+      precio_unitario: 120
+      unidad: sesión
+
+- id: CT-002
+  proveedor: Cóndor Cloud SAS
+  moneda: COP
+  tasa_pactada_por_usd: 4000
+  items:
+    - id: I1
+      descripcion: Hosting administrado mensual
+      precio_unitario: 400000
+      unidad: mes
+    - id: I2
+      descripcion: Soporte técnico por hora
+      precio_unitario: 100000
+      unidad: hora
+
+- id: CT-003
+  proveedor: Azteca Data SA de CV
+  moneda: MXN
+  tasa_pactada_por_usd: 18.5
+  items:
+    - id: I1
+      descripcion: Limpieza de datos por hora
+      precio_unitario: 600
+      unidad: hora
+    - id: I2
+      descripcion: Reporte mensual de calidad de datos
+      precio_unitario: 1200
+      unidad: reporte
+
+- id: CT-004
+  proveedor: Quetzal Labs SA de CV
+  moneda: USD
+  items:
+    - id: I1
+      descripcion: Desarrollo backend por hora
+      precio_unitario: 40
+      unidad: hora
+    - id: I2
+      descripcion: Desarrollo frontend por hora
+      precio_unitario: 38
+      unidad: hora
+    - id: I3
+      descripcion: Revisión de código por hora
+      precio_unitario: 30
+      unidad: hora
+    - id: I4
+      descripcion: Despliegue a producción
+      precio_unitario: 60
+      unidad: evento
+    - id: I5
+      descripcion: Monitoreo mensual
+      precio_unitario: 50
+      unidad: mes
+    - id: I6
+      descripcion: Documentación técnica por hora
+      precio_unitario: 25
+      unidad: hora
+
+- id: CT-005
+  proveedor: Pampa Code SRL
+  moneda: ARS
+  tasa_pactada_por_usd: 1200
+  items:
+    - id: I1
+      descripcion: Mantenimiento de app móvil por hora
+      precio_unitario: 25000
+      unidad: hora
+
+- id: CT-006
+  proveedor: Tango QA SRL
+  moneda: USD
+  items:
+    - id: I1
+      descripcion: Pruebas QA manuales por hora
+      precio_unitario: 37
+      unidad: hora
+
+- id: CT-007
+  proveedor: Inca Analytics SAC
+  moneda: PEN
+  tasa_pactada_por_usd: 3.75
+  items:
+    - id: I1
+      descripcion: Análisis de datos por hora
+      precio_unitario: 170
+      unidad: hora

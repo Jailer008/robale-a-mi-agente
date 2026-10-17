@@ -1,0 +1,23 @@
+{
+  "id_documento": "cd57549c04960ce1df89be12f179e366abb28a8a1f739a0ededa332f52e5e65c",
+  "archivo": "datos/facturas/05_limpia.pdf",
+  "canal": "web",
+  "proveedor": "Pampa Code SRL",
+  "id_fiscal": "30-70000111-9",
+  "cuenta_bancaria": "AR-BANCO-6402",
+  "numero_factura": "PC-0001-00004521",
+  "fecha_emision": "2026-10-14",
+  "fecha_vencimiento": "2026-11-13",
+  "moneda": "ARS",
+  "lineas": [
+    {"descripcion": "Mantenimiento de app móvil por hora", "cantidad": 6, "precio_unitario": 25000, "total": 150000}
+  ],
+  "subtotal": 150000,
+  "impuestos": 0,
+  "total": 150000,
+  "referencia_contrato": "CT-005",
+  "texto_libre": "",
+  "texto_oculto": [],
+  "extraccion_ok": true,
+  "diferencias": []
+}

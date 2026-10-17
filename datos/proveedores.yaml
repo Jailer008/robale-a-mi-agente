@@ -1,0 +1,56 @@
+# Proveedores FICTICIOS de Andes Labs LLC. Ningún nombre, ID fiscal ni cuenta es real.
+- nombre: Nubia Studio SAS
+  id_fiscal: "901.234.567-1"
+  pais: CO
+  cuenta_registrada: "CO-BANCO-0423"
+  permitido: true
+  bloqueado: false
+
+- nombre: Cóndor Cloud SAS
+  id_fiscal: "901.555.010-3"
+  pais: CO
+  cuenta_registrada: "CO-BANCO-1187"
+  permitido: true
+  bloqueado: false
+
+- nombre: Azteca Data SA de CV
+  id_fiscal: "ADA200101XX1"
+  pais: MX
+  cuenta_registrada: "MX-BANCO-5530"
+  permitido: true
+  bloqueado: false
+
+- nombre: Quetzal Labs SA de CV
+  id_fiscal: "QLA190615XX2"
+  pais: MX
+  cuenta_registrada: "MX-BANCO-2214"
+  permitido: true
+  bloqueado: false
+
+- nombre: Pampa Code SRL
+  id_fiscal: "30-70000111-9"
+  pais: AR
+  cuenta_registrada: "AR-BANCO-6402"
+  permitido: true
+  bloqueado: false
+
+- nombre: Tango QA SRL
+  id_fiscal: "30-70000222-4"
+  pais: AR
+  cuenta_registrada: "AR-BANCO-9015"
+  permitido: true
+  bloqueado: false
+
+- nombre: Inca Analytics SAC
+  id_fiscal: "20600000111"
+  pais: PE
+  cuenta_registrada: "PE-BANCO-0388"
+  permitido: true
+  bloqueado: false
+
+- nombre: Vicuña Consulting SAC
+  id_fiscal: "20600000222"
+  pais: PE
+  cuenta_registrada: "PE-BANCO-7310"
+  permitido: false
+  bloqueado: true

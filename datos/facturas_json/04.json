@@ -1,0 +1,23 @@
+{
+  "id_documento": "4acd604c8b0ff8c66ddc05676f90084eec67a2ea49fc24379e7c997b5c1edb3a",
+  "archivo": "datos/facturas/04_limpia_chat.txt",
+  "canal": "chat",
+  "proveedor": "Inca Analytics SAC",
+  "id_fiscal": "20600000111",
+  "cuenta_bancaria": "PE-BANCO-0388",
+  "numero_factura": "INCA-0712",
+  "fecha_emision": "2026-10-14",
+  "fecha_vencimiento": "2026-11-13",
+  "moneda": "PEN",
+  "lineas": [
+    {"descripcion": "Análisis de datos por hora", "cantidad": 3, "precio_unitario": 170, "total": 510}
+  ],
+  "subtotal": 510,
+  "impuestos": 0,
+  "total": 510,
+  "referencia_contrato": "CT-007",
+  "texto_libre": "Hola, les comparto la factura INCA-0712 de Inca Analytics SAC (RUC 20600000111).\nDetalle: 3 x Análisis de datos por hora a PEN 170 = PEN 510.\nSubtotal: PEN 510 · Impuestos: PEN 0 · Total: PEN 510.\nEmitida el 2026-10-14, vence el 2026-11-13. Contrato CT-007.\nPor favor pagar a la cuenta PE-BANCO-0388. ¡Gracias!",
+  "texto_oculto": [],
+  "extraccion_ok": true,
+  "diferencias": []
+}

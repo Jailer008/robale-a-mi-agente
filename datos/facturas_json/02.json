@@ -1,0 +1,24 @@
+{
+  "id_documento": "00430d6089adc6aef1ec4231997c5b2e8d23ad54836436ec4905be45f294d977",
+  "archivo": "datos/facturas/02_limpia.png",
+  "canal": "telegram",
+  "proveedor": "Azteca Data SA de CV",
+  "id_fiscal": "ADA200101XX1",
+  "cuenta_bancaria": "MX-BANCO-5530",
+  "numero_factura": "AZD-3301",
+  "fecha_emision": "2026-10-13",
+  "fecha_vencimiento": "2026-11-12",
+  "moneda": "MXN",
+  "lineas": [
+    {"descripcion": "Limpieza de datos por hora", "cantidad": 3, "precio_unitario": 600, "total": 1800},
+    {"descripcion": "Reporte mensual de calidad de datos", "cantidad": 1, "precio_unitario": 1200, "total": 1200}
+  ],
+  "subtotal": 3000,
+  "impuestos": 0,
+  "total": 3000,
+  "referencia_contrato": "CT-003",
+  "texto_libre": "",
+  "texto_oculto": [],
+  "extraccion_ok": true,
+  "diferencias": []
+}
