@@ -10,7 +10,13 @@ from google.genai import types
 from pydantic import ValidationError
 
 from extraccion.ingesta import Documento
-from extraccion.modelo import PROMPT, CamposExtraidos, ErrorExtraccion, esquema_plano, texto_de_apoyo
+from extraccion.modelo import (
+    PROMPT,
+    CamposExtraidos,
+    ErrorExtraccion,
+    esquema_plano,
+    texto_de_apoyo,
+)
 
 MODELO_POR_DEFECTO = "gemini-3.8-flash"
 

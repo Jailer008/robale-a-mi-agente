@@ -31,15 +31,17 @@ markers = [
 addopts = "-m 'not live'"
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py312"
+extend-exclude = ["schemas.py"]  # contrato común: se copia tal cual de 00_COMUN.md
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
 ignore = ["S101"]  # assert en tests
 
 [tool.ruff.lint.per-file-ignores]
-"schemas.py" = ["E501"]
+"datos/generar.py" = ["E501"]  # plantillas HTML: partirlas cambiaría los PDF y su SHA-256
+"tests/*" = ["S311"]           # random para fuzzing, no para criptografía
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv"]

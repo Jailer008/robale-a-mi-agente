@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from conftest import cargar_factura_json
+
 from extraccion.medir import CAMPOS, medir
 
 

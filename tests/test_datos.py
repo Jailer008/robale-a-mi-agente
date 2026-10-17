@@ -11,7 +11,6 @@ import hashlib
 from datetime import date, timedelta
 
 import pytest
-
 from conftest import DATOS, RAIZ
 
 HOY = date(2026, 10, 17)          # fecha de referencia fija: los tests no dependen del reloj
@@ -117,7 +116,7 @@ def test_aritmetica_cuadra(facturas, n):
     f = facturas[n]
     for linea in f.lineas:
         assert abs(linea.cantidad * linea.precio_unitario - linea.total) <= 0.01, (n, linea)
-    assert abs(sum(l.total for l in f.lineas) - f.subtotal) <= 0.01, n
+    assert abs(sum(linea.total for linea in f.lineas) - f.subtotal) <= 0.01, n
     assert abs(f.subtotal + f.impuestos - f.total) <= 0.01, n
 
 
@@ -201,7 +200,7 @@ def test_11_tarifa_inflada_30_por_ciento(facturas, contratos):
     f = facturas["11"]
     c = contrato_de(contratos, f.proveedor)
     precios = {i["descripcion"]: i["precio_unitario"] for i in c["items"]}
-    infladas = [l for l in f.lineas if l.precio_unitario > precios[l.descripcion] * 1.05]
+    infladas = [x for x in f.lineas if x.precio_unitario > precios[x.descripcion] * 1.05]
     assert len(infladas) == 1
     assert infladas[0].precio_unitario == 65 and precios[infladas[0].descripcion] == 50
 

@@ -5,13 +5,13 @@ from __future__ import annotations
 import random
 
 import pytest
-
 from conftest import RAIZ, cargar_factura_json
+from fakes import ExtractorFalso, campos_desde
+
 from extraccion import extraer
 from extraccion.cache import CacheExtracciones
 from extraccion.ingesta import sha256_archivo
 from extraccion.modelo import ErrorExtraccion
-from fakes import ExtractorFalso, campos_desde
 from schemas import FacturaCanonica
 
 CRITICOS = ["proveedor", "numero_factura", "moneda", "total", "cuenta_bancaria", "fecha_emision"]

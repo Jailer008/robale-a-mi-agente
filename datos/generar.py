@@ -86,9 +86,10 @@ def cantidad(valor: float) -> str:
 
 def html_plantilla_a(f: dict, oculto: list[str]) -> str:
     filas = "".join(
-        f"<tr><td>{escape(l['descripcion'])}</td><td class='num'>{cantidad(l['cantidad'])}</td>"
-        f"<td class='num'>{monto_es(l['precio_unitario'])}</td><td class='num'>{monto_es(l['total'])}</td></tr>"
-        for l in f["lineas"]
+        f"<tr><td>{escape(linea['descripcion'])}</td><td class='num'>{cantidad(linea['cantidad'])}</td>"
+        f"<td class='num'>{monto_es(linea['precio_unitario'])}</td>"
+        f"<td class='num'>{monto_es(linea['total'])}</td></tr>"
+        for linea in f["lineas"]
     )
     ocultos = "".join(
         f"<span style='color:#ffffff; font-size:1pt'>{escape(t)}</span>" for t in oculto
@@ -120,9 +121,10 @@ def html_plantilla_a(f: dict, oculto: list[str]) -> str:
 
 def html_plantilla_b(f: dict) -> str:
     filas = "".join(
-        f"<tr><td>{escape(l['descripcion'])}</td><td class='num'>{cantidad(l['cantidad'])}</td>"
-        f"<td class='num'>{monto_us(l['precio_unitario'])}</td><td class='num'>{monto_us(l['total'])}</td></tr>"
-        for l in f["lineas"]
+        f"<tr><td>{escape(linea['descripcion'])}</td><td class='num'>{cantidad(linea['cantidad'])}</td>"
+        f"<td class='num'>{monto_us(linea['precio_unitario'])}</td>"
+        f"<td class='num'>{monto_us(linea['total'])}</td></tr>"
+        for linea in f["lineas"]
     )
     return f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><style>{ESTILO_B}</style></head>
 <body>

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from fakes import ExtractorFalso
+
 from extraccion.cache import CacheExtracciones, con_cache
 from extraccion.ingesta import Documento
 from extraccion.modelo import CamposExtraidos
-from fakes import ExtractorFalso
 
 DOC = Documento(id_documento="a" * 64, archivo="x.pdf", tipo="pdf")
 CAMPOS = CamposExtraidos(proveedor="Nubia Studio SAS", total=200.0)

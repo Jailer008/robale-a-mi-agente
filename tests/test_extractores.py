@@ -6,13 +6,13 @@ import json
 from types import SimpleNamespace
 
 import pytest
-
 from conftest import RAIZ, cargar_factura_json
+from fakes import campos_desde
+
 from extraccion.extractor_a import ExtractorGemini
 from extraccion.extractor_b import ExtractorClaude
 from extraccion.ingesta import ingerir
 from extraccion.modelo import PROMPT, CamposExtraidos, ErrorExtraccion, esquema_plano
-from fakes import campos_desde
 
 
 def recorrer(nodo):

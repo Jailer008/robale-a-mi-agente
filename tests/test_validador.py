@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
-
 from conftest import cargar_factura_json
+
 from extraccion.formato import monto_es
 from extraccion.validador import validar
 from schemas import FacturaCanonica, Linea

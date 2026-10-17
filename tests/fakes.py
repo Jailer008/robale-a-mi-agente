@@ -16,7 +16,7 @@ def campos_desde(f: FacturaCanonica, **cambios) -> CamposExtraidos:
         numero_factura=f.numero_factura, fecha_emision=f.fecha_emision.isoformat(),
         fecha_vencimiento=f.fecha_vencimiento.isoformat() if f.fecha_vencimiento else None,
         moneda=f.moneda,
-        lineas=[LineaExtraida(**l.model_dump()) for l in f.lineas],
+        lineas=[LineaExtraida(**linea.model_dump()) for linea in f.lineas],
         subtotal=f.subtotal, impuestos=f.impuestos, total=f.total,
         referencia_contrato=f.referencia_contrato,
     )

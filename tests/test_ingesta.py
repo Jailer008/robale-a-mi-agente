@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 
 import pytest
-
 from conftest import RAIZ, cargar_factura_json
+
 from extraccion.ingesta import IngestaError, ingerir, sha256_archivo
 
 PNG = b"\x89PNG\r\n\x1a\n"
