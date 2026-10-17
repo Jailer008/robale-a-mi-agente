@@ -2,4 +2,5 @@
 *.pdf binary
 *.png binary
 *.jpg binary
-*.eml text eol=crlf
+# Los documentos de datos/facturas se versionan byte a byte: su SHA-256 es el id_documento.
+datos/facturas/** binary
