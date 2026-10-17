@@ -174,3 +174,12 @@ def test_aprobable_solo_si_escalar_sin_frenar_ni_datos_dudosos():
     assert frenar.aprobable is False
     pagar = agregar(extraccion_ok=True, cedar="ALLOW", fallas=[], hallazgos=[])
     assert (pagar.decision, pagar.codigo_principal, pagar.aprobable) == ("PAGAR", "OK", False)
+
+
+@pytest.mark.parametrize("cambios, codigo", [
+    ({"moneda": "EUR"}, "ERROR_TECNICO"),                                   # moneda válida sin tasa configurada
+    ({"moneda": "", "extraccion_ok": False, "diferencias": ["No se pudo leer la moneda"]}, "EXTRACCION"),
+])
+def test_falta_de_tasa_fx_distingue_la_causa(tmp_path, cambios, codigo):
+    d = nueva_cerebro(tmp_path).decidir(variante("01", **cambios))
+    assert (d.decision, d.codigo_principal, d.aprobable) == ("ESCALAR", codigo, False)
