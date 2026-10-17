@@ -123,7 +123,7 @@ META: pipeline REAL dentro del entorno de test `archivo->extraer->decidir->UI/AP
 
 Prueba de forma aislada (base SQLite temporal/fija, caché conocida, credenciales opcionales) los 15 documentos contra ground_truth. Calcula falsos PAGAR y falso FRENAR/ESCALAR; explica autonomía vs seguridad. Ejecuta simultáneamente casos nuevos: PDF malicioso con instrucciones, cuenta alterada, proveedor bloqueado, duplicado exacto y disfrazado, saldo insuficiente, sobre tope duro, solicitud de aprobación no autorizada, doble callback Telegram, misma factura enviada dos veces, error/timeout de modelo, cache corrupta, contenido inesperado y manipulación de decision_log.
 
-No permitir que 
+No permitir que
 - una falla cambie FRENAR a ESCALAR o PAGAR;
 - un aprobador humano materialice FRENAR o salte controles duros;
 - una factura de prueba se contabilice en dos pagos o manipule el saldo entre corridas;
