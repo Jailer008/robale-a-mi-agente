@@ -120,4 +120,3 @@ def test_ejemplo_de_integracion_end_to_end(tmp_path):
 def test_readme_explica_lo_simulado_y_lo_no_validado():
     for frase in ("SIMULAD", "SIN VALIDAR", "MOCK", "CACHÉ", "LIVE", "pendiente_humano"):
         assert frase in README.upper() or frase in README, frase
-

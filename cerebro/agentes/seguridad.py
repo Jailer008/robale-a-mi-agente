@@ -35,7 +35,7 @@ _PATRONES = [re.compile(p, re.IGNORECASE) for p in (
     r"(?:sistema|agente|asistente|modelo|bot|ia|ai)\b",
 )]
 # Guion suave, espacios de ancho cero, marcas de dirección, separadores invisibles y BOM.
-_INVISIBLES = re.compile("[­​-‏⁠-⁤﻿]")
+_INVISIBLES = re.compile("[\u00ad\u200b-\u200f\u2060-\u2064\ufeff]")
 _LETRAS_SUELTAS = re.compile(r"\b(?:\w ){2,}\w\b")
 _LEET = str.maketrans("0134578@$", "oieastbas")
 

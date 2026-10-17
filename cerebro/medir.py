@@ -276,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     resultados = medir(args.modo, confirmar_costo=args.confirmar_costo)
-    Path(args.salida).write_text(resultados.model_dump_json(indent=2), encoding="utf-8")
+    Path(args.salida).write_bytes(resultados.model_dump_json(indent=2).encode("utf-8") + b"\n")  # LF siempre
     _imprimir(resultados)
     print(f"Escrito {args.salida}")
     return 1 if resultados.resumen.falsos_pagar else 0

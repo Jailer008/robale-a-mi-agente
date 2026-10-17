@@ -505,4 +505,3 @@ def paquete_evidencia(factura_id: str) -> dict[str, Any]:
 
 def simular_politica(factura: FacturaCanonica | str, cambios: Mapping[str, Any]) -> dict[str, Any]:
     return _cerebro().simular_politica(factura, cambios)
-

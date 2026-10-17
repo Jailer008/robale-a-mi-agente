@@ -300,7 +300,7 @@ async def contrato(factura: FacturaCanonica, ctx: Contexto, capa: CapaSemantica)
             continue
         opciones: list[str] = [i["descripcion"] for i in items.values()] + [NINGUNO]
         # Choice tiende a preferir la primera opción: orden barajado, reproducible por factura y línea.
-        random.Random(f"{factura.id_documento}:{n}").shuffle(opciones)  # noqa: S311  (no es criptografía)
+        random.Random(f"{factura.id_documento}:{n}").shuffle(opciones)  # noqa: S311  # nosec B311
         opcion, p = await capa.elegir(ITEM_DE_CONTRATO, linea.descripcion, opciones)
         p = validar_probabilidad(p)
         if opcion not in opciones:
