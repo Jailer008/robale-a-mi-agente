@@ -47,12 +47,14 @@ from cerebro.privacidad import enmascarar_texto, proteger_factura, sanear_decisi
 from cerebro.registro import sellar
 from cerebro.registro import verificar_cadena as _verificar_cadena
 from cerebro.reglas import Evaluacion, evaluar
+from cerebro.reinicio import Puerta, ReinicioOcupado, reiniciar
 from cerebro.tipos import causa, fallo, tipo_de
 from schemas import Decision, FacturaCanonica, Hallazgo
 
 __all__ = [
     "CadenaAlterada", "Cerebro", "NoAprobable", "ReevaluacionNecesaria", "decidir", "decidir_async",
-    "paquete_evidencia", "reanudar", "reevaluar", "simular_politica", "verificar_cadena",
+    "ReinicioOcupado", "paquete_evidencia", "reanudar", "reevaluar", "reiniciar_demo", "simular_politica",
+    "verificar_cadena",
 ]
 
 log = logging.getLogger(__name__)
@@ -127,7 +129,8 @@ class Cerebro:
                  ref_date: date | None = None, agentes: Sequence[tuple[str, Agente]] = AGENTES,
                  aprobadores: frozenset[str] | None = None, exigir_aprobadores: bool = False,
                  capa: Any = None, semanticos: Mapping[str, AgenteSemantico] | None = None,
-                 timeout_agente_s: float | None = None, firmante: Firmante | None = None) -> None:
+                 timeout_agente_s: float | None = None, firmante: Firmante | None = None,
+                 administradores: frozenset[str] | None = None, db_base_path: Path | None = None) -> None:
         self.datos = Path(datos)
         self.reglas_path = Path(reglas_path)
         self.reglas = cargar_reglas(self.reglas_path)
@@ -144,7 +147,11 @@ class Cerebro:
         self.timeout_agente_s = timeout_agente_s if timeout_agente_s is not None else float(
             os.environ.get("CEREBRO_TIMEOUT_AGENTE_S") or 3.0)
         self.firmante = firmante
+        self.administradores = administradores
+        self._puerta = Puerta()
         self.db = BaseDatos(db_path)
+        self.ruta_base = Path(db_base_path) if db_base_path else self.db.ruta.with_name(
+            f"{self.db.ruta.stem}_base{self.db.ruta.suffix}")
         self.db.inicializar(self.historico_csv, self.reglas)
         self._cargar_secreto()
 
@@ -238,12 +245,17 @@ class Cerebro:
             return self._emergencia(factura, error)
 
     async def decidir_async(self, factura: FacturaCanonica) -> Decision:
-        return (await self._decidir_con_traza(factura))[0]
+        with self._puerta.operacion():                       # un reinicio de la demo espera a que termine
+            return (await self._decidir_con_traza(factura))[0]
+
+    async def _con_puerta_traza(self, factura: FacturaCanonica) -> tuple[Decision, dict[str, int]]:
+        with self._puerta.operacion():
+            return await self._decidir_con_traza(factura)
 
     def decidir_con_traza(self, factura: FacturaCanonica) -> tuple[Decision, dict[str, int]]:
         """Como decidir(), más la latencia por etapa (para cerebro.medir)."""
         try:
-            return correr_sync(self._decidir_con_traza(factura))
+            return correr_sync(self._con_puerta_traza(factura))
         except Exception as error:
             return self._emergencia(factura, error), {}
 
@@ -390,6 +402,11 @@ class Cerebro:
 
     async def reanudar_async(self, factura_id: str, aprobado: bool, aprobador: str, *,
                              clave_idempotencia: str | None = None) -> Decision:
+        with self._puerta.operacion():
+            return await self._reanudar(factura_id, aprobado, aprobador, clave_idempotencia=clave_idempotencia)
+
+    async def _reanudar(self, factura_id: str, aprobado: bool, aprobador: str, *,
+                        clave_idempotencia: str | None = None) -> Decision:
         """Resuelve un ESCALAR pendiente.
 
         - Rechazar → FRENAR firmado por el humano.
@@ -485,10 +502,17 @@ class Cerebro:
     async def reevaluar_async(self, factura_id: str) -> Decision:
         """Nueva validación completa de un ESCALAR pendiente (por ejemplo, tras un fallo de Jev). No paga
         nada: produce una decisión nueva en el registro, que vuelve a pasar por la aprobación humana."""
-        with self.db.lectura() as con:
-            self._verificar_o_fallar(con)
-            _, _, factura_json = self._pendiente(con, factura_id)
-        return await self.decidir_async(FacturaCanonica.model_validate_json(factura_json))
+        with self._puerta.operacion():
+            with self.db.lectura() as con:
+                self._verificar_o_fallar(con)
+                _, _, factura_json = self._pendiente(con, factura_id)
+            return (await self._decidir_con_traza(FacturaCanonica.model_validate_json(factura_json)))[0]
+
+    # ---------- demo ----------
+
+    def reiniciar_demo(self, admin: str, *, timeout_s: float = 30.0, respaldar: bool = True) -> dict[str, Any]:
+        """Vuelve la base de la demo al estado inicial (ver cerebro/reinicio.py). Solo administradores."""
+        return reiniciar(self, admin, timeout_s=timeout_s, respaldar=respaldar)
 
     # ---------- evidencia y sandbox ----------
 
@@ -528,6 +552,8 @@ def construir_desde_entorno() -> Cerebro:
         exigir_aprobadores=True,
         capa=capa_desde_entorno(),
         firmante=Firmante.desde_archivo(Path(ruta_firma)) if ruta_firma else None,
+        administradores=_lista_entorno("CEREBRO_ADMINS"),
+        db_base_path=Path(os.environ["DB_BASE_PATH"]) if os.environ.get("DB_BASE_PATH") else None,
     )
 
 
@@ -562,6 +588,10 @@ async def decidir_async(factura: FacturaCanonica) -> Decision:
 
 def reanudar(factura_id: str, aprobado: bool, aprobador: str, *, clave_idempotencia: str | None = None) -> Decision:
     return _cerebro().reanudar(factura_id, aprobado, aprobador, clave_idempotencia=clave_idempotencia)
+
+
+def reiniciar_demo(admin: str, *, timeout_s: float = 30.0) -> dict[str, Any]:
+    return _cerebro().reiniciar_demo(admin, timeout_s=timeout_s)
 
 
 def reevaluar(factura_id: str) -> Decision:

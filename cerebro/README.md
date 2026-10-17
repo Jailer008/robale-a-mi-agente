@@ -198,6 +198,8 @@ El cerebro **no autentica**: valida identidades contra una lista. La app (Dev 3)
 | `SIGNING_KEY_PATH` | Sin firma | Clave Ed25519 en PEM. Si no existe se crea con permisos 600. **Nunca al repo** (`*.pem` está ignorado) |
 | `CEREBRO_APROBADORES` | — | Lista separada por comas, por ejemplo `tg:111,tg:222`. Si falta se usa `TELEGRAM_APROBADORES`; si faltan ambas, **no se aprueba nada** (solo se rechaza) |
 | `TELEGRAM_APROBADORES` | — | Respaldo de la anterior |
+| `CEREBRO_ADMINS` | — | Administradores que pueden ejecutar `reiniciar_demo` (lista separada por comas). Si falta, nadie puede reiniciar |
+| `DB_BASE_PATH` | `<DB_PATH>_base.db` | Base sintética controlada desde la que se restaura la demo (por ejemplo `blinka_base.db`) |
 | `CEREBRO_SEMANTICA` | Vacío = determinista | `jev` activa `CapaJev` (Jev vía OpenRouter); `claude` activa `CapaClaude` (SIN VALIDAR). Sin credencial, la capa queda no disponible y todo escala |
 | `OPENROUTER_API_KEY` | — | Clave de OpenRouter para Jev. Solo viaja en la cabecera `Authorization`, por HTTPS a `openrouter.ai`, sin seguir redirecciones; se redacta de los errores y **nunca** se registra |
 | `OPENROUTER_MODEL` | `typesafe/jev-1.13` | Solo se acepta la versión fijada. Cualquier otro valor (`jev-1.14`, `~typesafe/jev-latest`) deja la capa no disponible |
