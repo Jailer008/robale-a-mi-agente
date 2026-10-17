@@ -1,0 +1,22 @@
+{
+  "base_id": "base_06",
+  "proveedor": "Quetzal Labs SA de CV",
+  "id_fiscal": "QLA190615XX2",
+  "pais": "MX",
+  "numero": "QL-1120",
+  "fecha_emision": "2026-10-18",
+  "fecha_vencimiento": "2026-11-17",
+  "moneda": "USD",
+  "lineas": [
+    {"descripcion": "Desarrollo backend por hora", "cantidad": 25, "precio_unitario": 52, "total": 1300}
+  ],
+  "subtotal": 1300,
+  "impuestos": 0,
+  "total": 1300,
+  "cuenta": "MX-BANCO-2214",
+  "referencia_contrato": "CT-004",
+  "nota_visible": "",
+  "nota_oculta": "",
+  "esperado_tal_cual": "ESCALAR",
+  "pista": "Esta factura parece normal… ¿o no? Revisa la tarifa por hora."
+}
