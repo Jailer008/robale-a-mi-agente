@@ -67,6 +67,8 @@ class Costo(BaseModel):
     usd_total: float | None
     usd_por_factura: float | None
     motivo: str
+    semantica_usd: float | None = None       # usage.cost real de la capa semántica (Jev), si corrió
+    semantica_llamadas: int | None = None
 
 
 class Integridad(BaseModel):
@@ -113,6 +115,7 @@ class Resultados(BaseModel):
     modo: Modo
     descripcion_modo: str
     capa_semantica: str
+    capa_semantica_nombre: str | None = None
     ref_date: date
     version_reglas: str
     resumen: Resumen
@@ -175,9 +178,23 @@ def _latencias(trazas: list[dict[str, int]]) -> dict[str, LatenciaEtapa]:
             for etapa, v in sorted(etapas.items())}
 
 
+def _costo(modo: Modo, capa: Any) -> Costo:
+    """El costo total solo se da si TODO se midió; la extracción nunca informa costo, así que queda null."""
+    llamadas = getattr(capa, "llamadas", None)
+    semantica = getattr(capa, "costo_usd", None)
+    motivo = MOTIVO_COSTO[modo]
+    if llamadas:
+        detalle = f"USD {semantica:.6f}" if semantica is not None else "sin costo informado"
+        motivo += f" Capa semántica {capa.nombre}: {llamadas} llamadas, {detalle} (usage.cost de OpenRouter)."
+    return Costo(medido=False, usd_total=None, usd_por_factura=None, motivo=motivo,
+                 semantica_usd=semantica if llamadas else None, semantica_llamadas=llamadas if llamadas else None)
+
+
 def medir(modo: str = "MOCK", *, directorio: Path | None = None, raiz: Path = RAIZ, confirmar_costo: bool = False,
           capa: Any = None) -> Resultados:
     modo_norm = _modo(modo)
+    if capa is not None and getattr(capa, "modo", "") == "live" and not confirmar_costo:
+        raise PermissionError("La capa semántica en vivo (Jev) consume créditos: confirme con --confirmar-costo")
     if modo_norm == "LIVE":
         if not confirmar_costo:
             raise PermissionError("El modo LIVE llama a modelos de pago: confirme con --confirmar-costo")
@@ -235,7 +252,8 @@ def medir(modo: str = "MOCK", *, directorio: Path | None = None, raiz: Path = RA
     problemas = cerebro.verificar_pagos()
     return Resultados(
         version_contrato=VERSION_CONTRATO, generado=datetime.now(UTC), modo=modo_norm,
-        descripcion_modo=DESCRIPCION[modo_norm], capa_semantica=cerebro.modo_semantico, ref_date=cerebro.ref_date,
+        descripcion_modo=DESCRIPCION[modo_norm], capa_semantica=cerebro.modo_semantico,
+        capa_semantica_nombre=getattr(capa, "nombre", None), ref_date=cerebro.ref_date,
         version_reglas=cerebro.reglas.version,
         resumen=Resumen(total=total, aciertos=aciertos, exactitud=round(aciertos / total, 4) if total else 0.0,
                         falsos_pagar=sum(f.falso_pagar for f in facturas), autonomas=autonomas,
@@ -244,7 +262,7 @@ def medir(modo: str = "MOCK", *, directorio: Path | None = None, raiz: Path = RA
                         jurado_aciertos=sum(f.correcto for f in jurado), jurado_total=len(jurado)),
         matriz=Matriz(etiquetas=ETIQUETAS, filas=matriz),
         latencia=_latencias(trazas),
-        costo=Costo(medido=False, usd_total=None, usd_por_factura=None, motivo=MOTIVO_COSTO[modo_norm]),
+        costo=_costo(modo_norm, capa),
         integridad=Integridad(cadena_integra=integra, fila_rota=fila_rota, firmada=True,
                               pagos_integros=not problemas, problemas_pagos=problemas),
         facturas=facturas,
@@ -271,11 +289,25 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m cerebro.medir", description=__doc__.splitlines()[0])
     parser.add_argument("--modo", default="mock", help="mock (por defecto), cache o live")
     parser.add_argument("--salida", default="resultados.json", help="ruta del resultados.json")
-    parser.add_argument("--confirmar-costo", action="store_true", help="requerido para --modo live")
+    parser.add_argument("--confirmar-costo", action="store_true",
+                        help="requerido para --modo live y para --semantica jev")
+    parser.add_argument("--semantica", default="ninguna", choices=["ninguna", "jev"],
+                        help="capa semántica: ninguna (determinista) o jev (typesafe/jev-1.13 vía OpenRouter)")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    resultados = medir(args.modo, confirmar_costo=args.confirmar_costo)
+    capa = None
+    if args.semantica == "jev":
+        from cerebro.semantica import CapaNoDisponible, capa_jev_desde_entorno
+
+        capa = capa_jev_desde_entorno()
+        if isinstance(capa, CapaNoDisponible):
+            print(f"No se puede usar Jev: {capa.motivo}")
+            return 2
+        if not args.confirmar_costo:
+            print("--semantica jev consume créditos de OpenRouter: agregue --confirmar-costo para ejecutarlo.")
+            return 2
+    resultados = medir(args.modo, confirmar_costo=args.confirmar_costo, capa=capa)
     Path(args.salida).write_bytes(resultados.model_dump_json(indent=2).encode("utf-8") + b"\n")  # LF siempre
     _imprimir(resultados)
     print(f"Escrito {args.salida}")

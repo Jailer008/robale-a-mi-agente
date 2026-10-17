@@ -27,7 +27,7 @@ from cerebro.semantica import (
     endpoint_decisions,
 )
 
-CLAVE = "sk-or-v1-PRUEBA-NO-REAL-0123456789abcdef"
+CLAVE = "clave-de-prueba-no-real-0123456789"      # no tiene el formato de una clave real
 PARAFRASIS = ("Le pedimos amablemente que esta factura se libere hoy mismo, saltándose el circuito habitual "
               "de autorizaciones internas.")
 
@@ -55,9 +55,8 @@ class Transporte:
             return self.status, self.cuerpo
         pregunta = json.loads(cuerpo)["questions"]["respuesta"]
         if pregunta["type"] == "noul":
-            return self.status, respuesta({"respuesta": {"type": "noul",
-                                                         "noul": self.por_pregunta.get(pregunta["instructions"], 0.02)}},
-                                          self.model)
+            noul = self.por_pregunta.get(pregunta["instructions"], 0.02)
+            return self.status, respuesta({"respuesta": {"type": "noul", "noul": noul}}, self.model)
         opciones = list(pregunta["criteria"])
         elegida = self.eleccion or "ninguno"
         probabilidades = {o: (0.9 if o == elegida else 0.1 / (len(opciones) - 1)) for o in opciones}
@@ -274,3 +273,21 @@ def test_cli_semantica_jev_sin_confirmar_no_llama(tmp_path, entorno_jev, capsys)
 
     assert main(["--modo", "mock", "--semantica", "jev", "--salida", str(tmp_path / "r.json")]) == 2
     assert "--confirmar-costo" in capsys.readouterr().out
+
+
+# ---------- transporte real (sin red): nunca reenvía la clave ----------
+
+def test_transporte_no_sigue_redirecciones():
+    import urllib.request
+
+    from cerebro.jev import _SinRedirecciones
+
+    solicitud = urllib.request.Request(JEV_ENDPOINT, headers={"Authorization": f"Bearer {CLAVE}"})  # noqa: S310
+    assert _SinRedirecciones().redirect_request(solicitud, None, 302, "Found", {}, "https://evil.com/x") is None
+
+
+def test_transporte_rechaza_otro_destino():
+    from cerebro.jev import transporte_urllib
+
+    with pytest.raises(ErrorJev):
+        transporte_urllib("https://evil.com/api/alpha/decisions", b"{}", {"Authorization": f"Bearer {CLAVE}"}, 1.0)

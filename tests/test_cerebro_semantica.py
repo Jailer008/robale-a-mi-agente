@@ -46,8 +46,9 @@ def test_claude_sin_credencial_queda_no_disponible(monkeypatch):
     assert isinstance(capa, CapaNoDisponible) and capa.modo == "no_disponible"
 
 
-def test_jev_no_esta_implementado_y_lo_dice(monkeypatch):
+def test_jev_sin_clave_no_disponible_y_lo_dice(monkeypatch):
     monkeypatch.setenv("CEREBRO_SEMANTICA", "jev")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)      # independiente de la terminal de quien lo corre
     capa = capa_desde_entorno()
     assert isinstance(capa, CapaNoDisponible) and "Jev" in capa.motivo
 

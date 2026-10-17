@@ -27,7 +27,7 @@ uv run pytest tests/test_contrato_cerebro.py -q
 | `medir` en modos MOCK y CACHÉ | Probado. 15/15 decisiones correctas, 0 pagos indebidos |
 | Capa semántica MOCK (`CapaFija`) | Solo para pruebas. **No es un modelo** |
 | Capa semántica LLM (`CapaClaude`, `CEREBRO_SEMANTICA=claude`) | Probada con cliente falso. **SIN VALIDAR** con la API real |
-| Jev (`jev-1.13.0`) | **No implementado.** No hay referencia oficial de su API ni clave autorizada. `CEREBRO_SEMANTICA=jev` falla de forma cerrada (todo escala) |
+| Jev `typesafe/jev-1.13` vía OpenRouter (`CapaJev`, `CEREBRO_SEMANTICA=jev`) | Implementado con el esquema oficial de la Decisions API (`noul` y `choice`). Probado con transporte falso. La validación LIVE queda pendiente de autorización |
 | `medir --modo live` | Implementado. **SIN VALIDAR**: requiere modelos de pago |
 
 ## 1. Funciones públicas
@@ -125,6 +125,7 @@ Los eventos se escriben junto con la decisión, en la misma transacción. El com
 uv run python -m cerebro.medir                    # MOCK (por defecto)
 uv run python -m cerebro.medir --modo cache       # CACHÉ
 uv run python -m cerebro.medir --modo live --confirmar-costo   # LIVE: cuesta dinero, SIN VALIDAR
+uv run python -m cerebro.medir --modo cache --semantica jev --confirmar-costo   # CACHÉ + Jev en vivo (créditos de OpenRouter)
 ```
 
 Escribe `resultados.json`; con `--salida` se cambia la ruta. El código de salida es **1 si hubo algún PAGAR indebido**. Cada corrida usa una base y una clave efímeras, así que nunca toca `blinka.db`. El modelo pydantic es `cerebro.medir.Resultados`.
@@ -136,12 +137,13 @@ Escribe `resultados.json`; con `--salida` se cambia la ruta. El código de salid
 | `modo` | `MOCK` (JSON canónicos, sin extracción) \| `CACHÉ` (originales → `extraer()` solo desde `cache/`) \| `LIVE` |
 | `descripcion_modo` | Texto que la UI debe mostrar junto a las métricas |
 | `capa_semantica` | `determinista` \| `mock` \| `live` \| `no_disponible` |
+| `capa_semantica_nombre` | Por ejemplo `jev:typesafe/jev-1.13`; `null` si no hay capa |
 | `ref_date` | Fecha de referencia usada |
 | `version_reglas` | SHA-256 de `reglas.yaml` |
 | `resumen` | `total`, `aciertos`, `exactitud`, `falsos_pagar`, `autonomas`, `autonomia`, `pendientes_humano`, `jurado_aciertos`, `jurado_total` |
 | `matriz` | `etiquetas` y `filas[esperado][obtenido]` (matriz 3×3) |
 | `latencia` | Por etapa (`extraccion_ms`, `agentes_ms`, `agente.<nombre>_ms`, `revalidacion_ms`, `total_ms`), cada una con `n`, `promedio_ms`, `p50_ms`, `max_ms` |
-| `costo` | `medido`, `usd_total`, `usd_por_factura`, `motivo`. **Si no se midió, es `null`, nunca 0** |
+| `costo` | `medido`, `usd_total`, `usd_por_factura`, `motivo`, `semantica_usd` y `semantica_llamadas` (costo real de Jev, tomado de `usage.cost`). **Si no se midió, es `null`, nunca 0.** La extracción no informa costo, por eso `usd_total` sigue en `null` |
 | `integridad` | `cadena_integra`, `fila_rota`, `firmada`, `pagos_integros`, `problemas_pagos` |
 | `facturas` | Por factura: `numero`, `archivo`, `jurado`, `esperado`, `obtenido`, `correcto`, `falso_pagar`, `autonoma`, `estado`, `explicacion`, `contrafactual`, `responsable`, `fuente` (`json`/`cache`/`cache_miss`/`live`), `factura_id`, `latencia_ms` |
 
@@ -191,7 +193,10 @@ El cerebro **no autentica**: valida identidades contra una lista. La app (Dev 3)
 | `SIGNING_KEY_PATH` | Sin firma | Clave Ed25519 en PEM. Si no existe se crea con permisos 600. **Nunca al repo** (`*.pem` está ignorado) |
 | `CEREBRO_APROBADORES` | — | Lista separada por comas, por ejemplo `tg:111,tg:222`. Si falta se usa `TELEGRAM_APROBADORES`; si faltan ambas, **no se aprueba nada** (solo se rechaza) |
 | `TELEGRAM_APROBADORES` | — | Respaldo de la anterior |
-| `CEREBRO_SEMANTICA` | Vacío = determinista | `claude` activa `CapaClaude` (SIN VALIDAR); `jev` queda no disponible (fail-closed) |
+| `CEREBRO_SEMANTICA` | Vacío = determinista | `jev` activa `CapaJev` (Jev vía OpenRouter); `claude` activa `CapaClaude` (SIN VALIDAR). Sin credencial, la capa queda no disponible y todo escala |
+| `OPENROUTER_API_KEY` | — | Clave de OpenRouter para Jev. Solo viaja en la cabecera `Authorization`, por HTTPS a `openrouter.ai`, sin seguir redirecciones; se redacta de los errores y **nunca** se registra |
+| `OPENROUTER_MODEL` | `typesafe/jev-1.13` | Solo se acepta la versión fijada. Cualquier otro valor (`jev-1.14`, `~typesafe/jev-latest`) deja la capa no disponible |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api` | Solo `https://openrouter.ai`. Se normaliza a `/api/alpha/decisions`; cualquier otro host deja la capa no disponible |
 | `CEREBRO_SEMANTICA_MODELO` | `claude-opus-5-5` | Modelo de `CapaClaude` |
 | `CEREBRO_TIMEOUT_AGENTE_S` | `3` | Timeout por agente y por consulta semántica |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | — | Solo si `CEREBRO_SEMANTICA=claude` |
