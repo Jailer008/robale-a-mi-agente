@@ -32,13 +32,12 @@ def _fecha(valor: str | None, etiqueta: str, problemas: list[str]) -> date | Non
         return None
 
 
-def _texto_libre(doc: Documento, campos: CamposExtraidos) -> str:
-    """Cuerpo del correo o chat + "Observaciones" de la factura: lo que lee el agente de seguridad.
+def _texto_libre(doc: Documento) -> str:
+    """Cuerpo del correo o chat + "Observaciones" del PDF: lo que lee el agente de seguridad.
 
-    Manda la lectura determinista del PDF; la del modelo solo se usa si el PDF no trae el bloque.
+    Las observaciones se leen del PDF sin modelo: un modelo podría resumirlas u omitirlas.
     """
-    observaciones = doc.observaciones or (campos.observaciones or "").strip()
-    return "\n\n".join(parte for parte in (doc.texto_libre, observaciones) if parte)
+    return "\n\n".join(parte for parte in (doc.texto_libre, doc.observaciones) if parte)
 
 
 def factura_vacia(id_documento: str, archivo: str, canal: str, diferencias: list[str],
@@ -97,6 +96,6 @@ def construir_factura(doc: Documento, campos: CamposExtraidos, canal: str) -> tu
         impuestos=campos.impuestos or 0.0,
         total=campos.total if campos.total is not None else 0.0,
         referencia_contrato=campos.referencia_contrato,
-        texto_libre=_texto_libre(doc, campos),
+        texto_libre=_texto_libre(doc),
     )
     return factura, problemas
