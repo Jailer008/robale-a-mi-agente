@@ -8,6 +8,19 @@ En la demo **el jurado intenta robarle al agente**: escanea un QR, recibe una fa
 
 > **Todo es ficticio.** La empresa (Andes Labs LLC), los proveedores, las cuentas y las facturas son inventados. **No hay pagos reales:** PAGAR es una autorización simulada.
 
+## Demo en vivo
+
+**🔗 [ui-production-35be.up.railway.app](https://ui-production-35be.up.railway.app/)**
+
+| Página | Qué hay |
+|---|---|
+| [Attack Lab](https://ui-production-35be.up.railway.app/) | Elige un ataque, falsifica la factura y mira el veredicto del agente |
+| [Pantalla](https://ui-production-35be.up.railway.app/pantalla) | La pantalla del pitch: contadores, último veredicto, intentos y QR |
+| [Comité](https://ui-production-35be.up.railway.app/comite) | Los cinco agentes y la llave de reglas para cada factura |
+| [Métricas](https://ui-production-35be.up.railway.app/metricas) | Exactitud, autonomía, matriz de confusión y verificación de la cadena |
+
+La página del aprobador (`/aprobar`) no se enlaza: se abre con el 2.º QR de la pantalla, que lleva su propia clave.
+
 ---
 
 ## Resultados medidos
