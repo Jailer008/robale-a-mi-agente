@@ -64,9 +64,88 @@ def _cargar_preset(nombre: str) -> None:
         _error(error)
 
 
+RAYABLE = {"total": "el total", "cuenta": "la cuenta", "numero": "el número"}
+
+
+def _cargar_base() -> None:
+    try:
+        st.session_state["base_f"] = cliente.get("/falsificar/base")
+        st.session_state["preview_f"] = cliente.imagen(st.session_state["base_f"]["preview_url"])
+    except cliente.ErrorApi as error:
+        st.session_state.pop("base_f", None)
+        _error(error)
+
+
+def _falsificar() -> None:
+    """Modo principal (plan v2): el jurado edita y raya; el servidor dibuja el PDF y el agente lo LEE."""
+    st.session_state.setdefault("sesion_id", uuid.uuid4().hex[:24])
+    if "base_f" not in st.session_state:
+        _cargar_base()
+    base = st.session_state.get("base_f")
+    if not base:
+        return
+    estilo.chip(base["etiqueta_modo"])
+    st.markdown(f"💡 {base['pista']}")
+    st.markdown(f"**{base['proveedor']}** · factura {base['numero']} · "
+                f"{estilo.monto(base['total'], base['moneda'])} · cuenta {base['cuenta_enmascarada']}")
+    if st.session_state.get("preview_f"):
+        st.image(st.session_state["preview_f"], caption="La factura que recibiste", use_container_width=True)
+    if st.button("Dame otra factura", key="f_otra"):
+        _cargar_base()
+        st.session_state.pop("resultado_f", None)
+        st.rerun()
+
+    with st.form("falsificar"):
+        st.caption("Deja vacío lo que no quieras cambiar. El servidor vuelve a dibujar la factura y el agente "
+                   "lee el documento, no este formulario.")
+        c1, c2 = st.columns(2)
+        monto = c1.number_input(f"Nuevo total ({base['moneda']})", min_value=0.0, max_value=1_000_000_000.0,
+                                value=None, placeholder=f"{base['total']:,.2f}", key="f_monto")
+        cuenta = c2.text_input("Cuenta bancaria", max_chars=40, key="f_cuenta",
+                               placeholder="Inventa una, p. ej. ATACANTE-1234",
+                               help="Inventa una cuenta. No pongas la tuya real.")
+        proveedor = c1.text_input("Proveedor", max_chars=40, key="f_proveedor", placeholder=base["proveedor"])
+        numero = c2.text_input("Número de factura", max_chars=40, key="f_numero",
+                               placeholder="p. ej. FV-0192 (ya pagada)")
+        nota = st.text_area("Nota al agente", max_chars=200, key="f_nota",
+                            placeholder="Escríbele una orden al agente…")
+        oculta = st.checkbox("Esconder la nota (texto blanco diminuto)", key="f_oculta")
+        rayar = st.multiselect("Rayar encima de…", list(RAYABLE), format_func=RAYABLE.get, key="f_rayar")
+        enviar = st.form_submit_button("Enviar y robar", use_container_width=True)
+    if enviar:
+        cambios: dict = {}
+        if monto is not None:
+            cambios["monto"] = float(monto)
+        for campo, valor in (("cuenta", cuenta), ("proveedor", proveedor), ("numero", numero)):
+            if valor.strip():
+                cambios[campo] = valor.strip()
+        if nota.strip():
+            cambios["nota"] = nota.strip()
+            if oculta:
+                cambios["nota_oculta"] = True
+        datos = {"sesion_id": st.session_state["sesion_id"], "base_id": base["base_id"], "cambios": cambios}
+        if rayar:
+            datos["rayar"] = rayar
+        try:
+            with st.spinner("El agente está leyendo tu factura…"):
+                r = cliente.post("/falsificar", json=datos)
+            st.session_state["resultado_f"] = r
+            st.session_state["ultimo_id"] = r["decision"]["factura_id"]
+        except cliente.ErrorApi as error:
+            _error(error)
+    r = st.session_state.get("resultado_f")
+    if r:
+        cambiados = ", ".join(r.get("campos_cambiados") or []) or "nada (la enviaste tal cual)"
+        st.markdown(f"**Lo que cambiaste:** {cambiados} · lectura: {r.get('fuente_extraccion', '—')}")
+        _resultado(r)
+
+
 def attack_lab() -> None:
     estilo.hero("¿Puedes engañar al agente?", "Prueba con facturas 100 % ficticias. No hay pagos reales.")
-    sintetico, documento = st.tabs(["Editar una factura", "Subir un documento"])
+    falsificada, sintetico, documento = st.tabs(["Falsificar la factura", "Editar datos (sintético)",
+                                                 "Subir un documento"])
+    with falsificada:
+        _falsificar()
     with sintetico:
         estilo.chip("DATOS SINTÉTICOS — EVALUACIÓN REAL DEL CEREBRO")
         elegido = st.segmented_control("Elige un ataque", list(PRESETS), format_func=PRESETS.get,

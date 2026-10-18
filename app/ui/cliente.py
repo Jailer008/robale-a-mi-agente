@@ -54,6 +54,15 @@ def post(ruta: str, token: str | None = None, json: Any = None, idempotencia: st
         return _respuesta(c.post(ruta, json=json, headers=_cabeceras(token, idempotencia)))
 
 
+def imagen(ruta: str) -> bytes:
+    """PNG servido por la API (vista previa de una factura base)."""
+    with _cliente() as c:
+        r = c.get(ruta)
+    if r.status_code >= 400 or r.headers.get("content-type", "").split(";")[0] != "image/png":
+        raise ErrorApi(r.status_code, {"mensaje": "No se pudo cargar la vista previa."})
+    return r.content
+
+
 def subir(nombre: str, contenido: bytes, canal: str) -> Any:
     with _cliente() as c:
         return _respuesta(c.post("/ingest", files={"archivo": (nombre, contenido)}, data={"canal": canal}))
