@@ -3,6 +3,12 @@
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/srv/.venv
+# WeasyPrint (dibujo de las facturas falsificadas) necesita Pango, HarfBuzz-Subset y una fuente con
+# glifos en español: sin ellos la API no arranca (extraccion.render se importa al iniciar).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 \
+       fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir uv==0.11.13
 WORKDIR /srv
 
@@ -14,7 +20,8 @@ COPY cerebro ./cerebro
 COPY extraccion ./extraccion
 COPY datos ./datos
 COPY cache ./cache
-COPY app/__init__.py app/api.py app/config.py app/documentos.py app/seguridad.py app/servicios.py app/sintetico.py ./app/
+COPY app/__init__.py app/api.py app/config.py app/documentos.py app/falsificar.py app/seguridad.py \
+     app/servicios.py app/sintetico.py ./app/
 
 RUN useradd --system --uid 10001 attacklab && mkdir -p /data && chown attacklab /data
 USER attacklab
