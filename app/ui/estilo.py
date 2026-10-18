@@ -161,6 +161,22 @@ div.stFormSubmitButton > button p, div.stButton > button[kind="primary"] p { fon
 .al-qr img { display:block; width:100% !important; max-width:100% !important; height:auto; border:none !important; }
 .al-instruccion { font-size:clamp(1.05rem, 1.4vw, 1.5rem); font-weight:700; text-align:center; margin:12px 0 4px; }
 .al-url { font-family:var(--mono); text-align:center; color:var(--acento); word-break:break-all; font-size:.95rem; }
+.st-key-pantalla_qr { align-items:center; text-align:center; max-width:520px; margin:0 auto 8px; }
+.st-key-pantalla_qr .al-qr { width:min(320px, 72vw); }
+.st-key-pantalla_qr [data-testid="stCaptionContainer"] { text-align:center; }
+.st-key-pantalla_qr label { justify-content:center; margin:0 auto; }
+
+/* --- aprobación: botones grandes, rechazar en rojo y tarjeta bloqueada --- */
+[class*="st-key-ok_"] button, [class*="st-key-peligro"] button { min-height:56px; }
+[class*="st-key-ok_"] button { background:var(--pagar) !important; color:#052E16 !important; border:none !important; }
+[class*="st-key-peligro"] button { background:#E11D48 !important; color:#fff !important; border:none !important; }
+[class*="st-key-peligro"] button:hover, [class*="st-key-ok_"] button:hover { filter:brightness(1.08); }
+[class*="st-key-bloq_"] { border:2px solid var(--frenar) !important; border-radius:var(--r2); }
+.al-bloqueo { border:1px solid rgba(251,113,133,.55); background:rgba(251,113,133,.09); border-radius:var(--r1);
+    padding:12px 16px; display:flex; gap:12px; align-items:flex-start; margin:4px 0 8px; }
+.al-bloqueo .i { font-size:1.4rem; line-height:1; } .al-bloqueo .t { color:var(--frenar); font-weight:800; }
+.al-bloqueo .a { color:var(--texto); margin-top:4px; font-size:.95rem; }
+.stApp button:disabled { opacity:.45; cursor:not-allowed; filter:grayscale(.6); }
 
 @media (max-width: 900px) { .st-key-ataque [role="radiogroup"] { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) {
@@ -171,6 +187,16 @@ div.stFormSubmitButton > button p, div.stButton > button[kind="primary"] p { fon
   .al-kpis { grid-template-columns:repeat(auto-fit, minmax(96px, 1fr)); gap:8px; }
   .al-kpi { padding:12px; } .al-kpi .k { font-size:.75rem; } .al-kpi .v { font-size:1.5rem; }
   .al-preview img { max-height:240px; object-fit:cover; object-position:top; }
+  /* En el celular los 3 contadores de la pantalla siguen en una fila compacta. */
+  .st-key-pantalla_kpis [data-testid="stHorizontalBlock"] { flex-wrap:nowrap !important; gap:8px !important; }
+  .st-key-pantalla_kpis [data-testid="stColumn"] { min-width:0 !important; width:auto !important;
+      flex:1 1 0 !important; }
+  .st-key-pantalla_kpis [data-testid="stMetric"] { padding:10px; min-height:118px; }
+  .st-key-pantalla_kpis [data-testid="stMetricValue"] { font-size:2.2rem !important; }
+  .st-key-pantalla_kpis [data-testid="stMetricLabel"] p { font-size:.72rem !important; white-space:normal !important;
+      overflow:visible !important; text-overflow:clip !important; line-height:1.2; }
+  .st-key-pantalla_kpis [data-testid="stMetricLabel"] div { overflow:visible !important;
+      white-space:normal !important; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition:none !important;
     animation:none !important; } }
@@ -284,6 +310,13 @@ def tablero_agentes(por_agente: dict[str, dict]) -> None:
 
 def tarjeta_agente(nombre: str, evento: dict | None) -> None:
     st.markdown(tarjeta_agente_html(nombre, evento), unsafe_allow_html=True)
+
+
+def bloqueo(titulo: str, accion: str) -> None:
+    """Tarjeta roja con candado: lo que ni una persona puede aprobar y qué hay que hacer."""
+    st.markdown(f'<div class="al-bloqueo" role="alert"><div class="i" aria-hidden="true">🔒</div><div>'
+                f'<div class="t">{html.escape(titulo)}</div><div class="a">{html.escape(accion)}</div></div></div>',
+                unsafe_allow_html=True)
 
 
 def lema() -> None:

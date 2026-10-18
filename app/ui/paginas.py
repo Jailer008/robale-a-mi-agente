@@ -529,12 +529,15 @@ def metricas() -> None:
     with st.expander("Detalle por factura"):
         st.dataframe(m["facturas"], use_container_width=True, hide_index=True)
     st.caption(f"Costo: {'medido' if m['costo']['medido'] else 'no medido'} — {m['costo']['motivo']}")
+    st.subheader("Acciones")
     a, b = st.columns(2)
-    if a.button("Verificar cadena", use_container_width=True):
+    if a.button("🔗 Verificar cadena", use_container_width=True,
+                help="Recalcula los hashes del registro: solo lectura, no cambia nada."):
         v = cliente.get("/verificar")
         (st.success if v["integra"] and v["pagos_integros"] else st.error)(
             f"Cadena íntegra: {v['integra']} · pagos íntegros: {v['pagos_integros']}")
-    if b.button("Paquete del jurado", use_container_width=True, disabled=not _token()):
+    if b.button("📦 Paquete del jurado", type="primary", use_container_width=True, disabled=not _token(),
+                help="Evalúa las facturas de prueba del jurado (requiere sesión de operador)."):
         try:
             p = cliente.post("/paquete-jurado", token=_token())
             st.info(p["advertencia"])
@@ -543,6 +546,18 @@ def metricas() -> None:
                             f"{estilo.etiqueta_codigo(x['decision']['codigo_principal'])}")
         except cliente.ErrorApi as error:
             _error(error)
+    with st.container(border=True, key="bloq_zona_peligro"):
+        st.markdown("**Zona de peligro** · Reiniciar la demo borra los intentos y el feed de la pantalla. "
+                    "Solo un administrador puede hacerlo.")
+        seguro = st.checkbox("Sí, quiero reiniciar la demo", key="confirmar_reinicio", disabled=not _token())
+        with st.container(key="peligro_reiniciar"):
+            if st.button("Reiniciar demo", use_container_width=True, disabled=not (_token() and seguro)):
+                try:
+                    cliente.post("/admin/reiniciar-demo", token=_token())
+                    st.session_state.pop("confirmar_reinicio", None)
+                    st.success("Demo reiniciada.")
+                except cliente.ErrorApi as error:
+                    _error(error)
 
 
 # ---------- G. Pantalla del pitch (se proyecta) ----------
@@ -571,11 +586,12 @@ def pantalla() -> None:
                     "Escanea el QR, falsifica la factura y envíala. Facturas 100 % ficticias: no hay pagos reales.",
                     "Róbale a mi agente · en vivo")
         url, publica = _url_publica()
-        tablero_col, qr_col = st.columns([2.3, 1], gap="large")
-        with qr_col:
-            estilo.qr(url, f"Código QR para atacar: {url}")
-            st.markdown('<div class="al-instruccion">📱 Escanea y roba</div>', unsafe_allow_html=True)
-            st.caption(url)
+        # QR centrado bajo el título (en una columna lateral se recortaba en algunas ventanas) y ocultable.
+        with st.container(key="pantalla_qr"):
+            if st.toggle("Mostrar QR", value=True, key="mostrar_qr"):
+                estilo.qr(url, f"Código QR para atacar: {url}")
+                st.markdown('<div class="al-instruccion">📱 Escanea y roba</div>', unsafe_allow_html=True)
+                st.caption(url)
             if not publica:
                 st.warning("Esta URL solo funciona en esta máquina: inicia el túnel público "
                            "(docker compose --profile publico up) o define PUBLIC_URL.")
@@ -609,8 +625,7 @@ def pantalla() -> None:
                 st.caption("Todavía nadie ha falsificado una factura desde el QR.")
             estilo.feed(e["feed"])
 
-        with tablero_col:
-            tablero()
+        tablero()
 
 
 # ---------- H. Aprobador (jurado voluntario, 2.º QR) ----------
@@ -638,18 +653,22 @@ def aprobar() -> None:
     if not pendientes:
         st.success("No hay nada pendiente de aprobar.")
     for x in pendientes:
-        with st.container(border=True):
+        fid = x["factura_id"]
+        # El borde rojo de las no aprobables sale de la clave del contenedor (st-key-bloq_…).
+        with st.container(border=True, key=f"{'tarjeta' if x['aprobable'] else 'bloq'}_{fid}"):
             estilo.chip(estilo.etiqueta_codigo(x["codigo_principal"]), "ESCALAR" if x["aprobable"] else "FRENAR")
             st.text(f"{x['proveedor']} · {x['numero_factura']}")
             st.markdown(f"**{estilo.monto(x['monto_original'], x['moneda'])}**")
             if x.get("contrafactual"):
                 st.caption(x["contrafactual"])
             if x["aprobable"]:
-                a, b = st.columns(2)
-                if a.button("✅ Aprobar", key=f"jap_{x['factura_id']}", type="primary", use_container_width=True):
-                    _resolver(x["factura_id"], "aprobar")
-                if b.button("❌ Rechazar", key=f"jre_{x['factura_id']}", use_container_width=True):
-                    _resolver(x["factura_id"], "rechazar")
+                a, b = st.columns(2, gap="large")
+                with a, st.container(key=f"ok_{fid}"):
+                    if st.button("✅ Aprobar", key=f"jap_{fid}", type="primary", use_container_width=True):
+                        _resolver(fid, "aprobar")
+                with b, st.container(key=f"peligro_{fid}"):
+                    if st.button("❌ Rechazar", key=f"jre_{fid}", use_container_width=True):
+                        _resolver(fid, "rechazar")
             else:
-                st.error("⛔ No se puede aprobar desde aquí.")
-                st.warning(x.get("accion_requerida") or "Hay que volver a evaluar la factura.")
+                accion = x.get("accion_requerida") or "Hay que volver a evaluar la factura."
+                estilo.bloqueo("No se puede aprobar desde aquí.", f"Acción requerida: {accion}")
