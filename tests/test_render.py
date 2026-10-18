@@ -264,7 +264,15 @@ def test_preview_png_a_120_dpi_y_en_cache():
 
 @pytest.mark.parametrize(
     "cuenta, esperado",
-    [("ATACANTE-7781", "…7781"), ("CO-BANCO-0423", "…0423"), ("12", "…12"), ("", ""), (None, "")],
+    [("ATACANTE-7781", "****7781"), ("CO-BANCO-0423", "****0423"), ("12", "****"), ("", ""), (None, "")],
 )
 def test_enmascarar(cuenta, esperado):
     assert enmascarar(cuenta) == esperado
+
+
+@pytest.mark.parametrize("cuenta", ["ATACANTE-7781", "co banco 0423", "AR-BANCO-9015", "x", "", None])
+def test_enmascarar_es_el_mismo_del_cerebro(cuenta):
+    """Un solo formato en registro, API y pantallas: el de cerebro.privacidad."""
+    from cerebro.privacidad import enmascarar as del_cerebro
+
+    assert enmascarar(cuenta) == del_cerebro(cuenta)

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as TiempoAgotado
@@ -40,9 +39,14 @@ _MAX_ERROR = 200
 
 
 def enmascarar(cuenta: str | None) -> str:
-    """'ATACANTE-7781' -> '…7781'. Registro, API y pantallas nunca muestran la cuenta completa."""
-    alfanumerico = re.sub(r"[^0-9A-Za-z]", "", cuenta or "")
-    return f"…{alfanumerico[-4:]}" if alfanumerico else ""
+    """'ATACANTE-7781' -> '****7781'. Registro, API y pantallas nunca muestran la cuenta completa.
+
+    Delega en cerebro.privacidad para que haya un solo formato en todo el sistema. El import
+    es diferido: extraer() no depende del cerebro.
+    """
+    from cerebro.privacidad import enmascarar as enmascarar_cerebro
+
+    return enmascarar_cerebro(cuenta)
 
 
 def timeout_configurado() -> float:
