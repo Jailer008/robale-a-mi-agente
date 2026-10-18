@@ -1,5 +1,6 @@
 # Attack Lab · desarrollo LOCAL (no despliegue). Puertos solo en 127.0.0.1.
-#   docker compose up --build        → API http://127.0.0.1:8000/health · UI http://127.0.0.1:8501/attack-lab
+#   docker compose up --build        → API http://127.0.0.1:8000/health · UI http://127.0.0.1:8501/
+#   docker compose --profile publico up -d   → además, túnel público para el QR (ver servicio tunel)
 # Secretos (tokens, claves de modelos) en un .env local NO versionado; ver docs/HANDOFF_DEV3.md.
 services:
   api:
@@ -23,10 +24,24 @@ services:
       dockerfile: docker/ui.Dockerfile
     environment:
       API_URL: "http://api:8000"
+      # Solo estas dos variables se toman del .env (interpolación): la UI nunca recibe claves de modelos.
+      APROBADOR_JURADO_TOKEN: "${APROBADOR_JURADO_TOKEN:-}"   # QR del aprobador en /pantalla
+      PUBLIC_URL: "${PUBLIC_URL:-}"                           # vacío = se usa el Host del túnel
     ports:
       - "127.0.0.1:8501:8501"
     depends_on:
       - api
+    restart: unless-stopped
+
+  # URL pública HTTPS para el QR del jurado (quick tunnel de Cloudflare, sin cuenta). Solo la UI:
+  # la API sigue privada. Uso: docker compose --profile publico up -d && docker compose logs tunel
+  # (la URL https://<algo>.trycloudflare.com aparece en el log; cambia en cada arranque).
+  tunel:
+    image: cloudflare/cloudflared:2026.10.1
+    profiles: ["publico"]
+    command: tunnel --no-autoupdate --url http://ui:8501
+    depends_on:
+      - ui
     restart: unless-stopped
 
 volumes:

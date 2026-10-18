@@ -20,7 +20,7 @@ COPY cerebro ./cerebro
 COPY extraccion ./extraccion
 COPY datos ./datos
 COPY cache ./cache
-COPY app/__init__.py app/api.py app/config.py app/documentos.py app/falsificar.py app/seguridad.py \
+COPY app/__init__.py app/api.py app/auditoria.py app/config.py app/documentos.py app/falsificar.py app/seguridad.py \
      app/servicios.py app/sintetico.py ./app/
 
 RUN useradd --system --uid 10001 attacklab && mkdir -p /data && chown attacklab /data

@@ -31,3 +31,26 @@ def test_la_imagen_trae_las_bases_y_la_plantilla_del_modo_en_vivo():
 def test_la_imagen_de_la_ui_copia_su_configuracion_de_streamlit():
     ui = (RAIZ / "docker" / "ui.Dockerfile").read_text(encoding="utf-8")
     assert re.search(r"^COPY app/ui/\.streamlit \./\.streamlit$", ui, re.M)
+
+
+def _compose() -> dict:
+    import yaml
+
+    return yaml.safe_load((RAIZ / "docker-compose.yml").read_text(encoding="utf-8"))
+
+
+def test_tunel_publico_opcional_solo_hacia_la_ui():
+    tunel = _compose()["services"]["tunel"]
+    assert tunel["profiles"] == ["publico"]                  # solo con: docker compose --profile publico up
+    assert re.fullmatch(r"cloudflare/cloudflared:\d{4}\.\d+\.\d+", tunel["image"]), "versión fija, nunca :latest"
+    assert "--url http://ui:8501" in tunel["command"]        # la API nunca se expone
+    assert "ports" not in tunel
+
+
+def test_la_ui_no_recibe_las_claves_de_los_modelos():
+    ui = _compose()["services"]["ui"]
+    assert "env_file" not in ui
+    entorno = ui["environment"]
+    assert entorno["APROBADOR_JURADO_TOKEN"] == "${APROBADOR_JURADO_TOKEN:-}"
+    assert entorno["PUBLIC_URL"] == "${PUBLIC_URL:-}"
+    assert not any("API_KEY" in clave for clave in entorno)
