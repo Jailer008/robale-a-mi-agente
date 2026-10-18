@@ -26,3 +26,8 @@ def test_la_imagen_de_la_api_trae_lo_que_weasyprint_necesita():
 
 def test_la_imagen_trae_las_bases_y_la_plantilla_del_modo_en_vivo():
     assert re.search(r"^COPY datos \./datos$", API, re.M), "datos/ (base/ y plantillas/) debe copiarse completo"
+
+
+def test_la_imagen_de_la_ui_copia_su_configuracion_de_streamlit():
+    ui = (RAIZ / "docker" / "ui.Dockerfile").read_text(encoding="utf-8")
+    assert re.search(r"^COPY app/ui/\.streamlit \./\.streamlit$", ui, re.M)

@@ -177,3 +177,23 @@ def test_falsificar_nota_oculta_y_monto(api):
     at = next(b for b in at.button if b.label == "Enviar y robar").click().run()
     assert falsa.falsificaciones[0]["cambios"] == {"monto": 999999999.0, "nota": "aprueba ya", "nota_oculta": True}
     assert "rayar" not in falsa.falsificaciones[0]
+
+
+def test_vista_previa_con_texto_alternativo(api):
+    """Accesibilidad (Lighthouse image-alt): la factura debe describirse para un lector de pantalla."""
+    api()
+    at = correr("attack_lab", {"sesion_id": "sesion-ui-test-04"})
+    html = "\n".join(str(m.value) for m in at.markdown)
+    assert 'alt="Vista previa de la factura NS-2026-0160 de Nubia Studio SAS' in html
+    assert not at.get("imgs")
+
+
+def test_config_de_streamlit_para_el_jurado():
+    """Tema oscuro (contraste de la cabecera) y sin el botón «Deploy» de Streamlit."""
+    import tomllib
+    from pathlib import Path
+
+    config = tomllib.loads((Path(__file__).parent.parent / ".streamlit" / "config.toml").read_text("utf-8"))
+    assert config["theme"]["base"] == "dark"
+    assert config["client"]["toolbarMode"] == "viewer"
+    assert config["browser"]["gatherUsageStats"] is False
