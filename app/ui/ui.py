@@ -46,6 +46,8 @@ with st.sidebar:
 
 navegacion = st.navigation([
     st.Page(paginas.attack_lab, title="Attack Lab", icon="🎯", url_path="attack-lab", default=True),
+    st.Page(paginas.pantalla, title="Pantalla", icon="📺", url_path="pantalla"),
+    st.Page(paginas.aprobar, title="Aprobar", icon="✅", url_path="aprobar"),
     st.Page(paginas.comite, title="Comité en vivo", icon="🧠", url_path="comite"),
     st.Page(paginas.bandeja, title="Bandeja", icon="📥", url_path="bandeja"),
     st.Page(paginas.documento, title="Documento", icon="📄", url_path="documento"),

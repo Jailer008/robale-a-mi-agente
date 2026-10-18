@@ -6,7 +6,9 @@ Autoría: Dev 2 (anticipo del alcance de Dev 3) · revisión de Dev 3 PENDIENTE.
 from __future__ import annotations
 
 import datetime as dt
+import os
 import uuid
+from urllib.parse import quote
 
 import cliente
 import estilo
@@ -418,3 +420,109 @@ def metricas() -> None:
                          f"{estilo.etiqueta_codigo(x['decision']['codigo_principal'])}")
         except cliente.ErrorApi as error:
             _error(error)
+
+
+# ---------- G. Pantalla del pitch (se proyecta) ----------
+
+LOCALES = ("localhost", "127.0.0.1", "0.0.0.0")  # noqa: S104 - solo para detectar una URL no pública
+
+
+def _url_publica() -> tuple[str, bool]:
+    """URL a la que apunta el QR: PUBLIC_URL o el Host con el que se abrió la pantalla (p. ej. el túnel)."""
+    url = os.environ.get("PUBLIC_URL", "").strip().rstrip("/")
+    if not url:
+        try:
+            cabeceras = st.context.headers
+            host = cabeceras.get("Host") or ""
+            proto = cabeceras.get("X-Forwarded-Proto") or ("https" if host.endswith(".trycloudflare.com") else "http")
+        except Exception:  # noqa: BLE001 - sin contexto de navegador (pruebas)
+            host = ""
+        url = f"{proto}://{host}" if host else "http://localhost:8501"
+    return url + "/", not any(local in url for local in LOCALES)
+
+
+def pantalla() -> None:
+    estilo.hero("¿Puedes robarle a este agente?",
+                "Escanea el QR, falsifica la factura y envíala. Facturas 100 % ficticias: no hay pagos reales.")
+    url, publica = _url_publica()
+    tablero_col, qr_col = st.columns([3, 1])
+    with qr_col:
+        estilo.qr(url, f"Código QR para atacar: {url}")
+        st.caption(url)
+        if not publica:
+            st.warning("Esta URL solo funciona en esta máquina: inicia el túnel público "
+                       "(docker compose --profile publico up) o define PUBLIC_URL.")
+        token_jurado = os.environ.get("APROBADOR_JURADO_TOKEN")
+        if _token() and token_jurado:
+            if st.toggle("Mostrar QR del aprobador", key="mostrar_qr_aprobador"):
+                estilo.qr(f"{url}aprobar?clave={quote(token_jurado, safe='')}",
+                          "QR del aprobador: abre la página para aprobar lo que escaló")
+                st.caption("QR del aprobador · quien lo escanee puede aprobar SOLO lo aprobable")
+
+    @st.fragment(run_every=2)
+    def tablero() -> None:
+        try:
+            e = cliente.get("/estado")
+        except cliente.ErrorApi as error:
+            _error(error)
+            return
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Intentos de robo", e["intentos"])
+        c2.metric("Pagos indebidos", e["pagos_fuera_de_reglas"])
+        c3.metric("Frenados", e["frenados"])
+        st.caption(f"{e['pagos_auditados']} pagos simulados, auditados de forma independiente. {e['auditoria']}")
+        ultimo = e.get("ultimo")
+        if ultimo:
+            estilo.sello(ultimo["decision"], ultimo["codigo_principal"])
+            st.write(ultimo["explicacion"])
+        st.subheader("Últimos intentos")
+        if not e["feed"]:
+            st.caption("Todavía nadie lo ha intentado.")
+        for x in e["feed"]:
+            cambios = ", ".join(x["campos_cambiados"]) or "la envió tal cual"
+            st.markdown(f"**{x['alias']}** · cambió {cambios} · {estilo.monto(x['monto'], x['moneda'])} · "
+                        f"cuenta `{x['cuenta_enmascarada']}` → **{x['decision']}** · `{x['codigo']}` "
+                        f"({estilo.etiqueta_codigo(x['codigo'])})")
+
+    with tablero_col:
+        tablero()
+
+
+# ---------- H. Aprobador (jurado voluntario, 2.º QR) ----------
+
+def aprobar() -> None:
+    clave = st.query_params.get("clave")
+    if clave:
+        st.session_state["token"] = clave           # vive en la sesión del servidor, no en la URL
+        del st.query_params["clave"]
+    estilo.hero("Aprobación humana",
+                "Solo puedes aprobar lo que las reglas permiten. Si cambiaron la cuenta o el proveedor, ni tú puedes.")
+    if not _token():
+        st.info("Escanea el QR del aprobador que aparece en la pantalla grande.")
+        return
+    try:
+        items = cliente.get("/decisiones", limite=50)["items"]
+    except cliente.ErrorApi as error:
+        _error(error)
+        return
+    pendientes = [x for x in items if x["estado"] == "pendiente_humano"]
+    if st.button("Actualizar", key="j_actualizar"):
+        st.rerun()
+    if not pendientes:
+        st.success("No hay nada pendiente de aprobar.")
+    for x in pendientes:
+        with st.container(border=True):
+            st.text(f"{x['proveedor']} · {x['numero_factura']}")
+            st.write(f"**{estilo.monto(x['monto_original'], x['moneda'])}** · "
+                     f"{estilo.etiqueta_codigo(x['codigo_principal'])}")
+            if x.get("contrafactual"):
+                st.caption(x["contrafactual"])
+            if x["aprobable"]:
+                a, b = st.columns(2)
+                if a.button("✅ Aprobar", key=f"jap_{x['factura_id']}", use_container_width=True):
+                    _resolver(x["factura_id"], "aprobar")
+                if b.button("❌ Rechazar", key=f"jre_{x['factura_id']}", use_container_width=True):
+                    _resolver(x["factura_id"], "rechazar")
+            else:
+                st.error("⛔ No se puede aprobar desde aquí.")
+                st.warning(x.get("accion_requerida") or "Hay que volver a evaluar la factura.")

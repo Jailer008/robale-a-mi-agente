@@ -113,3 +113,14 @@ def imagen_png(datos: bytes, alt: str) -> None:
     codificada = base64.b64encode(datos).decode("ascii")
     st.markdown(f'<img src="data:image/png;base64,{codificada}" alt="{html.escape(alt, quote=True)}" '
                 f'style="width:100%;border-radius:12px">', unsafe_allow_html=True)
+
+
+def qr(url: str, alt: str) -> None:
+    """Código QR (PNG, con alt) hacia `url`. segno genera el PNG sin dependencias."""
+    import io
+
+    import segno
+
+    salida = io.BytesIO()
+    segno.make(url, error="m").save(salida, kind="png", scale=10, border=2, dark="#0A0F1C", light="#FFFFFF")
+    imagen_png(salida.getvalue(), alt)

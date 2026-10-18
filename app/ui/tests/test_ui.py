@@ -220,7 +220,8 @@ def test_config_de_streamlit_para_el_jurado():
 # ---------- pantalla del pitch y página del aprobador ----------
 
 def html_y_textos(at: AppTest) -> str:
-    return "\n".join([textos(at), *(str(m.value) for m in at.markdown), *(str(m.value) for m in at.caption)])
+    partes = [*at.markdown, *at.caption, *at.info, *at.success]
+    return "\n".join([textos(at), *(str(m.value) for m in partes), *(m.label for m in at.metric)])
 
 
 def test_pantalla_contadores_ultimo_y_feed(api, monkeypatch):
@@ -265,7 +266,7 @@ def test_aprobar_con_clave_en_la_url(api):
     at = AppTest.from_string("import paginas\npaginas.aprobar()\n", default_timeout=30)
     at.query_params["clave"] = "token-del-jurado-aprobador-0123456789"
     at = at.run()
-    assert at.session_state["token"] == "token-del-jurado-aprobador-0123456789"
+    assert at.session_state["token"] == "token-del-jurado-aprobador-0123456789"  # noqa: S105 - token falso de test
     assert "clave" not in at.query_params                         # la clave no queda en la URL
     botones = [b.key for b in at.button if b.label == "✅ Aprobar"]
     assert botones == ["jap_" + "c" * 64]
