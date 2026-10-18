@@ -207,6 +207,11 @@ def crear_app(servicio: Servicio | None = None, ajustes: Ajustes | None = None) 
         cuota(f"falsificar:sesion:{caso.sesion_id}", ajustes.falsificar_por_hora_sesion, 3600)
         return await svc.falsificar(caso)
 
+    @app.get("/estado")
+    def estado(request: Request) -> dict[str, Any]:
+        cuota(f"lectura:ip:{ip(request)}", ajustes.lectura_por_minuto_ip, 60)
+        return svc.estado()
+
     @app.get("/intentos/{intento_id}")
     def intento(intento_id: Annotated[str, Path(pattern=r"^[a-f0-9]{32}$")]) -> dict[str, Any]:
         return svc.progreso(intento_id)

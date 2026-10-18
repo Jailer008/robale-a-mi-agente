@@ -17,12 +17,13 @@ import json
 import threading
 import time
 import uuid
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import dataclass
 from typing import Any
 
 import cerebro
 from app import VERSION
+from app.auditoria import auditar_pago
 from app.config import Ajustes
 from app.documentos import ETIQUETAS_FUENTE, extraer_documento, guardar, validar
 from app.falsificar import CARPETA, ETIQUETA_FALSIFICADA, CasoFalsificado, base_aleatoria, dibujar
@@ -74,6 +75,8 @@ class Servicio:
         self.ajustes = ajustes
         self.motor = motor or cerebro.construir_desde_entorno()
         self._extractores = extractores                          # solo pruebas: lectores sin modelos
+        self._alias: dict[str, int] = {}                         # sesion_id → número de «Atacante #N»
+        self._feed: deque[dict[str, Any]] = deque(maxlen=30)     # intentos recientes (en memoria)
         self._escritura = asyncio.Lock()
         self._progreso: OrderedDict[str, Progreso] = OrderedDict()
         self._fuentes: dict[str, str] = {}                     # factura_id → etiqueta de origen del documento
@@ -179,8 +182,55 @@ class Servicio:
                                                   extractores=self._extractores)
         d = await self._decidir(intento_id, factura)
         self._fuentes[d.factura_id] = ETIQUETA_FALSIFICADA
+        self._al_feed(caso.sesion_id, ETIQUETA_FALSIFICADA, cambiados, d, factura)
         return {**self._resultado(intento_id, d, factura, ETIQUETA_FALSIFICADA), "fuente_extraccion": fuente,
                 "base_id": caso.base_id, "campos_cambiados": cambiados}
+
+    # ---------- pantalla del pitch ----------
+
+    def _al_feed(self, sesion_id: str, modo: str, cambiados: list[str], d: Decision, f: FacturaCanonica) -> None:
+        """Feed seguro: qué cambió (nombres de campo), monto y cuenta enmascarada. Nunca texto del jurado."""
+        with self._candado:
+            numero = self._alias.setdefault(sesion_id, len(self._alias) + 1)
+            self._feed.appendleft({
+                "alias": f"Atacante #{numero}", "modo": modo, "campos_cambiados": list(cambiados),
+                "monto": d.monto_original, "moneda": d.moneda, "cuenta_enmascarada": visible(f.cuenta_bancaria) or "",
+                "decision": d.decision, "codigo": codigo_seguro(d.codigo_principal), "factura_id": d.factura_id,
+                "ts": d.ts.isoformat()})
+
+    def estado(self) -> dict[str, Any]:
+        """Contadores sobre la última decisión de cada factura, con auditoría independiente de cada PAGAR."""
+        with self.motor.db.lectura() as con:
+            filas = con.execute(
+                "SELECT d.decision_json, d.factura_json FROM decision_log d JOIN (SELECT factura_id, MAX(id) AS id"
+                " FROM decision_log GROUP BY factura_id) u ON d.id = u.id ORDER BY d.id DESC").fetchall()
+        r = self.motor._reglas_actuales()
+        limites = {"limite_pago_usd": r.limite_pago_cents / 100, "tope_duro_usd": r.tope_duro_cents / 100}
+        intentos = pagos = fuera = frenados = escalados = 0
+        ultimo = None
+        for decision_json, factura_json in filas:
+            d = Decision.model_validate_json(decision_json)
+            f = FacturaCanonica.model_validate_json(factura_json)
+            if d.decision == "PAGAR":
+                pagos += 1
+                if auditar_pago(d, f, self.motor.catalogo.proveedores, self.motor.secreto, limites):
+                    fuera += 1
+            origen = self._fuentes.get(d.factura_id, origen_de(f.archivo))
+            if origen.startswith("PAQUETE"):
+                continue
+            intentos += 1
+            frenados += d.decision == "FRENAR"
+            escalados += d.decision == "ESCALAR"
+            if ultimo is None:
+                v = self._publica(d)
+                ultimo = {k: v[k] for k in ("factura_id", "decision", "codigo_principal", "aprobable",
+                                            "accion_requerida", "explicacion", "monto_original", "moneda")}
+        with self._candado:
+            feed = list(self._feed)[:12]
+        return {"intentos": intentos, "pagos": pagos, "pagos_auditados": pagos, "pagos_fuera_de_reglas": fuera,
+                "frenados": frenados, "escalados": escalados, "ultimo": ultimo, "feed": feed,
+                "auditoria": "Cada PAGAR se re-audita: proveedor permitido, cuenta registrada, lectura válida, "
+                             "sin texto oculto y límites (o aprobación humana)."}
 
     async def paquete_jurado(self) -> list[dict[str, Any]]:
         """Las 6 facturas del paquete del jurado, desde los JSON canónicos (sin extracción ni red).

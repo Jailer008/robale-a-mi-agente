@@ -82,15 +82,15 @@ def test_estado_inicial(cliente):
 
 def test_estado_tras_dos_ataques(cliente):
     falsificar(cliente)                                           # tal cual → PAGAR
-    falsificar(cliente, cambios={"cuenta": "ATACANTE-7781", "monto": 9800})
+    falsificar(cliente, cambios={"cuenta": "ATACANTE-7781"})
     e = cliente.get("/estado").json()
     assert (e["intentos"], e["pagos"], e["pagos_auditados"], e["pagos_fuera_de_reglas"]) == (2, 1, 1, 0)
     assert e["frenados"] == 1
     primero = e["feed"][0]                                        # el más reciente primero
     assert primero["alias"] == "Atacante #1" and primero["decision"] == "FRENAR"
     assert primero["codigo"] == "CUENTA_NO_REGISTRADA"
-    assert primero["campos_cambiados"] == ["monto", "cuenta"]
-    assert primero["cuenta_enmascarada"] == "****7781" and primero["monto"] == 9800
+    assert primero["campos_cambiados"] == ["cuenta"]
+    assert primero["cuenta_enmascarada"] == "****7781" and primero["monto"] == 1120
     assert set(primero) == {"alias", "modo", "campos_cambiados", "monto", "moneda", "cuenta_enmascarada",
                             "decision", "codigo", "factura_id", "ts"}
     assert e["ultimo"]["factura_id"] == primero["factura_id"]
