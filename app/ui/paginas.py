@@ -424,7 +424,8 @@ def metricas() -> None:
 
 # ---------- G. Pantalla del pitch (se proyecta) ----------
 
-LOCALES = ("localhost", "127.0.0.1", "0.0.0.0")  # noqa: S104 - solo para detectar una URL no pública
+# Solo para reconocer una URL que no es pública; no abre ningún puerto.
+LOCALES = ("localhost", "127.0.0.1", "0.0.0.0")  # noqa: S104  # nosec B104
 
 
 def _url_publica() -> tuple[str, bool]:

@@ -51,6 +51,6 @@ def test_la_ui_no_recibe_las_claves_de_los_modelos():
     ui = _compose()["services"]["ui"]
     assert "env_file" not in ui
     entorno = ui["environment"]
-    assert entorno["APROBADOR_JURADO_TOKEN"] == "${APROBADOR_JURADO_TOKEN:-}"
+    assert entorno["APROBADOR_JURADO_TOKEN"] == "${APROBADOR_JURADO_TOKEN:-}"  # noqa: S105 - plantilla de compose, no un secreto
     assert entorno["PUBLIC_URL"] == "${PUBLIC_URL:-}"
     assert not any("API_KEY" in clave for clave in entorno)
