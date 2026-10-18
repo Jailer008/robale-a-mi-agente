@@ -105,7 +105,9 @@ class _Contador:
         return resultado
 
 
-def extraer_documento(ruta: Path, canal: str, *, live: bool) -> tuple[FacturaCanonica, Fuente]:
+def extraer_documento(ruta: Path, canal: str, *, live: bool,
+                      extractores: tuple[Any, Any] | None = None) -> tuple[FacturaCanonica, Fuente]:
+    """`extractores` (A, B) reemplaza a los de Dev 1: lo usan las pruebas para no llamar a modelos."""
     from extraccion import extractores_por_defecto, extraer
     from extraccion.cache import CacheExtracciones
     from extraccion.extractor_b import MODELO as MODELO_B
@@ -123,7 +125,10 @@ def extraer_documento(ruta: Path, canal: str, *, live: bool) -> tuple[FacturaCan
         def escribir(self, *args: Any, **kwargs: Any) -> None:
             return None
 
-    if live:
+    if extractores is not None:
+        live = True
+        a, b = _Contador(extractores[0]), _Contador(extractores[1])
+    elif live:
         base_a, base_b = extractores_por_defecto(cargar_env=False)
         a, b = _Contador(base_a), _Contador(base_b)
     else:

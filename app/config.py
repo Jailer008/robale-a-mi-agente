@@ -58,6 +58,10 @@ class Ajustes:
     lectura_por_minuto_ip: int = 120
     politica_por_minuto_ip: int = 20
     paquete_por_minuto: int = 2
+    # Modo «factura falsificada»: cada intento cuesta una extracción LIVE (dinero y ~5 s)
+    falsificar_por_minuto_ip: int = 6
+    falsificar_por_hora_sesion: int = 10
+    falsificar_por_minuto_global: int = 30
 
 
 def desde_entorno() -> Ajustes:

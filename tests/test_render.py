@@ -91,6 +91,12 @@ def test_salida_puede_ser_un_directorio(tmp_path):
     assert ruta == tmp_path / "base_02-B1.pdf" and ruta.is_file()
 
 
+def test_salida_a_un_directorio_que_aun_no_existe(tmp_path):
+    destino = tmp_path / "entrada" / "falsificadas"
+    ruta = render_factura("base_02", {}, None, "B2", destino)
+    assert ruta == destino / "base_02-B2.pdf" and ruta.is_file()
+
+
 def test_numero_cambiado_se_respeta_tal_cual(tmp_path):
     ruta, aplicada = render(tmp_path, cambios={"numero": "FV-0192"})
     assert aplicada.numero == "FV-0192"

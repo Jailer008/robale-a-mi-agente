@@ -23,7 +23,7 @@ from typing import Any
 
 import pymupdf
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageDraw, UnidentifiedImageError
 from pydantic import BaseModel
 from weasyprint import HTML
 
@@ -210,7 +210,7 @@ def render_factura(
 ) -> Path:
     """Dibuja la factura falsificada y devuelve la ruta del PDF.
 
-    `salida` puede ser la ruta del PDF o un directorio (se usa `{base_id}-{sufijo}.pdf`).
+    `salida` puede ser la ruta de un .pdf o un directorio, exista o no (se usa `{base_id}-{sufijo}.pdf`).
     Lanza ValueError si la base no existe y CambiosInvalidos si la entrada no es válida.
     """
     base = cargar_base(base_id)
@@ -218,7 +218,8 @@ def render_factura(
     rayones = _validar_rayones(rayones_png) if rayones_png is not None else None
 
     salida = Path(salida)
-    destino = salida / f"{base_id}-{sufijo_numero}.pdf" if salida.is_dir() else salida
+    # Sin extensión .pdf es un directorio, aunque todavía no exista.
+    destino = salida if salida.suffix.lower() == ".pdf" else salida / f"{base_id}-{sufijo_numero}.pdf"
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_bytes(_pdf(aplicada, rayones))
     return destino
@@ -229,3 +230,37 @@ def preview_png(base_id: str) -> bytes:
     """Imagen de la base tal cual a 120 dpi: lo que el celular muestra al cargar."""
     with pymupdf.open(stream=_pdf(cargar_base(base_id), None), filetype="pdf") as doc:
         return doc[0].get_pixmap(dpi=DPI_PREVIEW).tobytes("png")
+
+
+# ---------- rayones dibujados por el servidor ----------
+
+OBJETIVOS_RAYON = ("total", "cuenta", "numero")
+
+
+def rayones_sobre(f: FacturaBase, objetivos: list[str]) -> bytes:
+    """PNG transparente (tamaño del preview) con un garabato grueso sobre lo que el jurado eligió rayar.
+
+    Sustituye al lienzo a mano alzada: Streamlit no tiene uno estable. El resultado es un rayón como
+    cualquier otro: se superpone al PDF y lo detecta el escáner.
+    """
+    if (not isinstance(objetivos, list) or not 1 <= len(objetivos) <= len(OBJETIVOS_RAYON)
+            or not set(objetivos) <= set(OBJETIVOS_RAYON) or len(set(objetivos)) != len(objetivos)):
+        raise CambiosInvalidos(f"Se puede rayar: {', '.join(OBJETIVOS_RAYON)} (cada uno una vez)")
+    buscados = {"total": f"TOTAL {f.moneda} {_monto_fmt(f.total)}", "cuenta": f.cuenta, "numero": f.numero}
+    escala = DPI_PREVIEW / 72
+    with pymupdf.open(stream=_pdf(f, None), filetype="pdf") as doc:
+        pagina = doc[0]
+        lienzo = Image.new("RGBA", (round(pagina.rect.width * escala), round(pagina.rect.height * escala)),
+                           (0, 0, 0, 0))
+        dibujo = ImageDraw.Draw(lienzo)
+        for objetivo in objetivos:
+            for r in pagina.search_for(buscados[objetivo])[:1]:
+                x0, y0, x1, y1 = (r.x0 - 4) * escala, (r.y0 - 3) * escala, (r.x1 + 4) * escala, (r.y1 + 3) * escala
+                pasos = 6
+                puntos = [(x0 + (x1 - x0) * i / pasos, y0 if i % 2 else y1) for i in range(pasos + 1)]
+                dibujo.line(puntos, fill=(205, 20, 20, 255), width=max(6, round(4 * escala)), joint="curve")
+                dibujo.line([(x0, (y0 + y1) / 2), (x1, (y0 + y1) / 2)], fill=(205, 20, 20, 255),
+                            width=max(6, round(5 * escala)))
+    salida = io.BytesIO()
+    lienzo.save(salida, "PNG")
+    return salida.getvalue()

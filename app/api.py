@@ -13,19 +13,23 @@ from typing import Annotated, Any, Literal
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Path, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app import VERSION
 from app.config import Ajustes, desde_entorno
 from app.documentos import ArchivoInvalido
+from app.falsificar import CasoFalsificado
 from app.seguridad import Limitador, Operador, autenticar
 from app.servicios import NoEncontrado, Servicio
 from app.sintetico import ETIQUETA_MODO, PRESETS, CasoSintetico, preset
 from cerebro import CadenaAlterada, NoAprobable, ReevaluacionNecesaria, ReinicioOcupado
+from extraccion.render import CambiosInvalidos
 
 FacturaId = Annotated[str, Path(pattern=r"^[A-Za-z0-9-]{8,80}$")]
+BaseId = Annotated[str, Path(pattern=r"^base_\d{2}$")]
 _MAX_JSON = 64 * 1024
+_MAX_FALSIFICAR = 3 * 1024 * 1024          # admite un PNG de rayones de hasta 2 MB en base64
 _MENSAJES_VALIDACION = {
     "extra_forbidden": "campo no permitido: este dato lo calcula el servidor",
     "missing": "falta este campo",
@@ -68,7 +72,8 @@ def crear_app(servicio: Servicio | None = None, ajustes: Ajustes | None = None) 
         largo = request.headers.get("content-length")
         if largo is not None and not largo.isdigit():
             return _error(400, "solicitud_invalida", "Content-Length inválido.")
-        if largo and request.url.path != "/ingest" and int(largo) > _MAX_JSON:
+        maximo = _MAX_FALSIFICAR if request.url.path == "/falsificar" else _MAX_JSON
+        if largo and request.url.path != "/ingest" and int(largo) > maximo:
             return _error(413, "demasiado_grande", "La solicitud es demasiado grande.")
         respuesta = await call_next(request)
         respuesta.headers["X-Content-Type-Options"] = "nosniff"
@@ -108,6 +113,11 @@ def crear_app(servicio: Servicio | None = None, ajustes: Ajustes | None = None) 
     @app.exception_handler(NoEncontrado)
     async def _no_encontrado(request: Request, error: NoEncontrado) -> JSONResponse:
         return _error(404, "no_encontrado", "No existe esa factura o intento.")
+
+    @app.exception_handler(CambiosInvalidos)
+    async def _cambios(request: Request, error: CambiosInvalidos) -> JSONResponse:
+        # Mensajes propios de extraccion.render (nunca eco del texto del jurado).
+        return _error(422, "datos_invalidos", str(error)[:200])
 
     @app.exception_handler(ArchivoInvalido)
     async def _archivo(request: Request, error: ArchivoInvalido) -> JSONResponse:
@@ -177,6 +187,25 @@ def crear_app(servicio: Servicio | None = None, ajustes: Ajustes | None = None) 
         cuota(f"ingest:ip:{ip(request)}", ajustes.ingest_por_minuto_ip, 60)
         contenido = await archivo.read(ajustes.max_upload_bytes + 1)          # nunca más que el máximo + 1
         return await svc.ingest(archivo.filename, contenido, canal)
+
+    # ---------- modo «factura falsificada» (plan v2): el agente lee el documento ----------
+
+    @app.get("/falsificar/base")
+    def base_aleatoria(request: Request) -> dict[str, Any]:
+        cuota(f"lectura:ip:{ip(request)}", ajustes.lectura_por_minuto_ip, 60)
+        return svc.base_aleatoria()
+
+    @app.get("/falsificar/base/{base_id}/preview.png")
+    async def preview(base_id: BaseId, request: Request) -> Response:
+        cuota(f"lectura:ip:{ip(request)}", ajustes.lectura_por_minuto_ip, 60)
+        return Response(content=await asyncio.to_thread(svc.preview, base_id), media_type="image/png")
+
+    @app.post("/falsificar")
+    async def falsificar(caso: CasoFalsificado, request: Request) -> dict[str, Any]:
+        cuota("falsificar:global", ajustes.falsificar_por_minuto_global, 60)
+        cuota(f"falsificar:ip:{ip(request)}", ajustes.falsificar_por_minuto_ip, 60)
+        cuota(f"falsificar:sesion:{caso.sesion_id}", ajustes.falsificar_por_hora_sesion, 3600)
+        return await svc.falsificar(caso)
 
     @app.get("/intentos/{intento_id}")
     def intento(intento_id: Annotated[str, Path(pattern=r"^[a-f0-9]{32}$")]) -> dict[str, Any]:

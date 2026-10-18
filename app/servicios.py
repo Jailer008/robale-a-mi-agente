@@ -25,6 +25,7 @@ import cerebro
 from app import VERSION
 from app.config import Ajustes
 from app.documentos import ETIQUETAS_FUENTE, extraer_documento, guardar, validar
+from app.falsificar import CARPETA, ETIQUETA_FALSIFICADA, CasoFalsificado, base_aleatoria, dibujar
 from app.sintetico import ETIQUETA_MODO, CasoSintetico, construir_factura
 from cerebro import Cerebro, NoAprobable
 from cerebro.codigos import CODIGOS
@@ -54,6 +55,8 @@ class Progreso:
 def origen_de(archivo: str) -> str:
     if archivo.startswith("sintetico/"):
         return ETIQUETA_MODO
+    if f"/{CARPETA}/" in "/" + archivo.replace("\\", "/"):
+        return ETIQUETA_FALSIFICADA
     if archivo.startswith("entrada/") or "/entrada/" in archivo.replace("\\", "/"):
         return "DOCUMENTO SUBIDO"
     if archivo.startswith("datos/facturas/"):
@@ -66,9 +69,11 @@ def codigo_seguro(codigo: str) -> str:
 
 
 class Servicio:
-    def __init__(self, ajustes: Ajustes, motor: Cerebro | None = None) -> None:
+    def __init__(self, ajustes: Ajustes, motor: Cerebro | None = None,
+                 extractores: tuple[Any, Any] | None = None) -> None:
         self.ajustes = ajustes
         self.motor = motor or cerebro.construir_desde_entorno()
+        self._extractores = extractores                          # solo pruebas: lectores sin modelos
         self._escritura = asyncio.Lock()
         self._progreso: OrderedDict[str, Progreso] = OrderedDict()
         self._fuentes: dict[str, str] = {}                     # factura_id → etiqueta de origen del documento
@@ -147,6 +152,35 @@ class Servicio:
         d = await self._decidir(intento_id, factura)
         self._fuentes[d.factura_id] = etiqueta
         return {**self._resultado(intento_id, d, factura, etiqueta), "fuente_extraccion": fuente}
+
+    # ---------- modo «factura falsificada» (plan v2) ----------
+
+    def base_aleatoria(self) -> dict[str, Any]:
+        return base_aleatoria()
+
+    def preview(self, base_id: str) -> bytes:
+        from extraccion.render import listar_bases, preview_png
+
+        if base_id not in listar_bases():
+            raise NoEncontrado(base_id)
+        return preview_png(base_id)
+
+    async def falsificar(self, caso: CasoFalsificado) -> dict[str, Any]:
+        """Dibuja la factura editada y la decide leyendo el PDF, nunca el formulario."""
+        from extraccion.render import listar_bases
+
+        if caso.base_id not in listar_bases():
+            raise NoEncontrado(caso.base_id)
+        intento_id = uuid.uuid4().hex
+        self._etapa(intento_id, "recibido")
+        ruta, cambiados = await asyncio.to_thread(dibujar, caso, intento_id[:8].upper(), self.ajustes.entrada)
+        self._etapa(intento_id, "extrayendo")
+        factura, fuente = await asyncio.to_thread(extraer_documento, ruta, "web", live=self.ajustes.extraccion_live,
+                                                  extractores=self._extractores)
+        d = await self._decidir(intento_id, factura)
+        self._fuentes[d.factura_id] = ETIQUETA_FALSIFICADA
+        return {**self._resultado(intento_id, d, factura, ETIQUETA_FALSIFICADA), "fuente_extraccion": fuente,
+                "base_id": caso.base_id, "campos_cambiados": cambiados}
 
     async def paquete_jurado(self) -> list[dict[str, Any]]:
         """Las 6 facturas del paquete del jurado, desde los JSON canónicos (sin extracción ni red).
@@ -265,7 +299,10 @@ class Servicio:
         integra, _ = self.motor.verificar_cadena()
         return {"estado": "ok", "version": VERSION, "revision_dev3": "pendiente",
                 "cadena_integra": integra, "capa_semantica": self.motor.modo_semantico,
-                "modo_extraccion": "LIVE autorizado" if self.ajustes.extraccion_live else "solo caché (sin modelos)"}
+                "modo_extraccion": "LIVE autorizado" if self.ajustes.extraccion_live else "solo caché (sin modelos)",
+                "modo_falsificar": ("LIVE: el agente lee cada factura falsificada"
+                                    if self.ajustes.extraccion_live or self._extractores
+                                    else "sin extracción: activa ATTACK_LAB_EXTRACCION_LIVE=1 (todo escalará)")}
 
     def verificar(self) -> dict[str, Any]:
         integra, fila = self.motor.verificar_cadena()
