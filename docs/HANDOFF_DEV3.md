@@ -108,7 +108,7 @@ Los errores siempre tienen la forma `{"error": <código>, "mensaje": <texto en e
 
 ## 4. Pantallas (Streamlit)
 
-- **Navegación:** Attack Lab (`/attack-lab`), Comité en vivo, Bandeja, Documento, Reglas (lectura) y Métricas.
+- **Navegación:** Attack Lab (raíz `/`: la página por defecto de Streamlit ignora su `url_path`, así que `/attack-lab` muestra «Page not found»), Comité en vivo, Bandeja, Documento, Reglas (lectura) y Métricas.
 - **Barra lateral:** estado de la API e inicio de sesión de operador. El token se escribe a mano y se guarda en la sesión **del servidor** de Streamlit; no queda en el navegador ni en el HTML.
 
 | Pantalla | Qué hace |
@@ -150,7 +150,7 @@ uv run uvicorn --factory app.api:crear_app --host 127.0.0.1 --port 8000 --worker
 
 # UI (proyecto aparte)
 cd app/ui && uv sync --locked && API_URL=http://127.0.0.1:8000 uv run streamlit run ui.py --server.port 8501
-# → http://127.0.0.1:8501/attack-lab
+# → http://127.0.0.1:8501/   (la raíz es el Attack Lab)
 
 # Reinicio de la demo (solo admin; no hay botón en la UI del jurado)
 curl -X POST -H "Authorization: Bearer <token-admin>" http://127.0.0.1:8000/admin/reiniciar-demo
@@ -169,7 +169,7 @@ uv run bandit -q -r cerebro app/__init__.py app/api.py app/config.py app/documen
 
 Resultado: sin hallazgos.
 
-**Smoke local (2026-10-17):** uvicorn en `127.0.0.1:8000` y Streamlit en `127.0.0.1:8501/attack-lab` (HTTP 200).
+**Smoke local (2026-10-17):** uvicorn en `127.0.0.1:8000` y Streamlit en `127.0.0.1:8501/` (HTTP 200; ojo: Streamlit responde 200 a cualquier ruta).
 
 | Caso | Resultado |
 |---|---|
@@ -205,10 +205,10 @@ Los logs no contenían tokens ni cuentas completas.
 ## 8. Lista de revisión para Dev 3
 
 - [x] Leer `app/api.py` y `app/servicios.py`; confirmar que ninguna ruta devuelve la evidencia cruda a un jurado. Las rutas nuevas devuelven solo `vista_publica` y la cuenta enmascarada (verificado en el smoke real)
-- [ ] Probar los seis presets desde un celular (`/attack-lab`) contra `uvicorn` local.
+- [x] Probar desde un celular (raíz `/`). Hecho con Chrome emulando un iPhone (390 px, táctil) contra los contenedores Docker: ataque «cuenta del atacante» de punta a punta → FRENAR `CUENTA_NO_REGISTRADA`. **Falta un celular físico** (red real y teclado del sistema)
 - [x] Intentar aprobar un FRENAR por la API y por la UI: debe ser imposible. API: 409 `no_aprobable` (smoke real); UI: sin botones (test de Dev 2)
-- [ ] Revisar la estética y la accesibilidad (`app/ui/estilo.py`) en la pantalla del pitch.
-- [ ] Construir con Docker (`docker compose up --build`) con Docker Desktop encendido. Sigue pendiente (Docker no está activado en WSL), pero `api.Dockerfile` se corrigió: no copiaba `app/falsificar.py` ni traía Pango/fuentes para WeasyPrint. `tests/test_docker.py` lo vigila
+- [x] Accesibilidad: Lighthouse móvil **92 → 100**. Se corrigió el contraste de la cabecera (tema oscuro en `app/ui/.streamlit/config.toml`, sin botón «Deploy») y la vista previa ahora tiene `alt`
+- [x] Construir con Docker (`docker compose up --build`): **las dos imágenes se construyen y corren** (Docker Desktop 29.8.1). Antes se corrigió `api.Dockerfile` (no copiaba `app/falsificar.py` ni traía Pango/fuentes para WeasyPrint). Smoke en contenedores con LIVE: PAGAR, FRENAR cuenta, FRENAR texto oculto y ESCALAR por rayón; sin secretos ni cuentas en logs ni en la imagen. `tests/test_docker.py` lo vigila
 - [x] Telegram: **fuera de alcance** en el plan v2 (`DEV3_experiencia_demo_v2.md`). Si se retoma, decidir si reutiliza `/simular` o `/ingest` (recomendado) y cómo se autentican los aprobadores (`chat_id` en `APP_APROBADOR_TOKENS` / `CEREBRO_APROBADORES`).
 
 ## 9. Revisión de Dev 3 (2026-10-18)
