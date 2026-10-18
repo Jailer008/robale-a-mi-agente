@@ -109,12 +109,12 @@ Los errores siempre tienen la forma `{"error": <código>, "mensaje": <texto en e
 ## 4. Pantallas (Streamlit)
 
 - **Navegación:** Attack Lab (raíz `/`: la página por defecto de Streamlit ignora su `url_path`, así que `/attack-lab` muestra «Page not found»), Comité en vivo, Bandeja, Documento, Reglas (lectura) y Métricas.
-- **Barra lateral:** estado de la API e inicio de sesión de operador. El token se escribe a mano y se guarda en la sesión **del servidor** de Streamlit; no queda en el navegador ni en el HTML.
+- **Barra lateral** (plegada por defecto): estado de la API y, dentro de «Acceso de operador», el inicio de sesión. El token se escribe a mano y se guarda en la sesión **del servidor** de Streamlit; no queda en el navegador ni en el HTML.
 
 | Pantalla | Qué hace |
 |---|---|
-| **A. Attack Lab** | Seis presets editables, formulario, vista previa ("el servidor recalcula todo") y botón «Intentar el ataque». Muestra decisión, código, si es aprobable, acción requerida, regla principal, evidencia permitida y montos. Pestaña para subir documentos |
-| **B. Comité** | Cinco tarjetas con los eventos **reales**: "procesando…" mientras no existen, sin tiempos ni probabilidades inventados. Llave de reglas y sello. Actualización opcional cada 2 s |
+| **A. Attack Lab** | Flujo en 3 pasos: 1) seis tarjetas de ataque; 2) manipular la factura (modo principal: falsificar el PDF; secundarios: datos sintéticos y subir documento); 3) veredicto. CTA único «Intentar engañar al agente». Muestra decisión, código, si es aprobable, estado de la aprobación humana, acción requerida, regla principal, evidencia permitida, montos y aviso de pago simulado |
+| **B. Comité** | Cinco tarjetas con los eventos **reales**: "procesando…" mientras no existen, sin tiempos ni probabilidades inventados. Rejilla adaptable (no cinco columnas en móvil), lema «Los agentes detectan. Las reglas deciden.», llave de reglas y sello de `decision.decision` (nunca `cedar`). Actualización opcional cada 2 s |
 | **C. Bandeja** | PAGAR (simulado), ESCALAR pendiente y FRENAR. Aprobar/Rechazar **solo** si está pendiente, es aprobable y hay sesión de operador. Si no es aprobable, muestra la acción requerida y «Volver a evaluar» |
 | **D. Documento** | Datos estructurados (no se renderiza el archivo subido), cuenta enmascarada, hallazgos con códigos, cadena e historial. Para el operador, el paquete completo |
 | **E. Métricas** | MOCK o CACHÉ con su etiqueta, falsos PAGAR **en ese dataset**, exactitud, autonomía medida, matriz 3×3, costo "no medido", Verificar cadena y Paquete del jurado |
