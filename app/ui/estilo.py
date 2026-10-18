@@ -6,6 +6,7 @@ viene del jurado o de la API nunca se inserta como HTML.
 
 from __future__ import annotations
 
+import base64
 import html
 
 import streamlit as st
@@ -105,3 +106,10 @@ def tarjeta_agente(nombre: str, evento: dict | None) -> None:
 def monto(valor: float, moneda: str) -> str:
     texto = f"{valor:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
     return f"{moneda} {texto}"
+
+
+def imagen_png(datos: bytes, alt: str) -> None:
+    """PNG con texto alternativo (st.image no admite alt). El alt se escapa: lo arma el servidor."""
+    codificada = base64.b64encode(datos).decode("ascii")
+    st.markdown(f'<img src="data:image/png;base64,{codificada}" alt="{html.escape(alt, quote=True)}" '
+                f'style="width:100%;border-radius:12px">', unsafe_allow_html=True)

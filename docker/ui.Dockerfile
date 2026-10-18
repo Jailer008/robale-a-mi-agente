@@ -9,6 +9,7 @@ COPY app/ui/pyproject.toml app/ui/uv.lock ./
 RUN uv sync --locked --no-dev
 
 COPY app/ui/ui.py app/ui/paginas.py app/ui/estilo.py app/ui/cliente.py ./
+COPY app/ui/.streamlit ./.streamlit
 
 RUN useradd --system --uid 10002 attacklabui
 USER attacklabui

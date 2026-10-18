@@ -89,7 +89,10 @@ def _falsificar() -> None:
     st.markdown(f"**{base['proveedor']}** · factura {base['numero']} · "
                 f"{estilo.monto(base['total'], base['moneda'])} · cuenta {base['cuenta_enmascarada']}")
     if st.session_state.get("preview_f"):
-        st.image(st.session_state["preview_f"], caption="La factura que recibiste", use_container_width=True)
+        estilo.imagen_png(st.session_state["preview_f"],
+                          f"Vista previa de la factura {base['numero']} de {base['proveedor']}: total "
+                          f"{estilo.monto(base['total'], base['moneda'])}, cuenta {base['cuenta_enmascarada']}")
+        st.caption("La factura que recibiste")
     if st.button("Dame otra factura", key="f_otra"):
         _cargar_base()
         st.session_state.pop("resultado_f", None)
