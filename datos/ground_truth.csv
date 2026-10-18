@@ -7,8 +7,8 @@ datos/facturas/05_limpia.pdf,web,PAGAR,"En regla, en ARS, cuadra con el contrato
 datos/facturas/06_limpia.pdf,web,PAGAR,"En regla, 6 líneas que cuadran con el contrato CT-004",0
 datos/facturas/07_duplicado_exacto.pdf,web,FRENAR,"Duplicado exacto: FV-0192 de Tango QA SRL ya se pagó el 2026-10-02 por USD 1.850",1
 datos/facturas/08_duplicado_disfrazado.pdf,web,ESCALAR,"Duplicado disfrazado de FV-0192: otro número y formato, mismo monto, 5 días después",1
-datos/facturas/09_proveedor_nuevo.pdf,telegram,ESCALAR,"Delta Devs no está en la lista de proveedores aprobados",0
-datos/facturas/10_cambio_cuenta.eml,email,ESCALAR,"Cuenta termina en 7781; la registrada de Nubia Studio SAS termina en 0423",1
+datos/facturas/09_proveedor_nuevo.pdf,telegram,FRENAR,"PROVEEDOR_NO_PERMITIDO: Delta Devs no está en la lista aprobada. No aprobable: dar de alta al proveedor (contrato + cuenta verificada) antes de pagar",0
+datos/facturas/10_cambio_cuenta.eml,email,FRENAR,"CUENTA_NO_REGISTRADA: la cuenta termina en 7781 y la registrada de Nubia Studio SAS en 0423. No aprobable: verificar por teléfono con el contacto conocido del proveedor",1
 datos/facturas/11_tarifa_inflada.pdf,web,ESCALAR,"Línea 2: tarifa USD 65/h vs USD 50/h del contrato CT-001 (+30 %)",1
 datos/facturas/12_monto_alto.pdf,web,ESCALAR,"USD 7.400 supera el límite de USD 5.000 sin aprobación humana",1
 datos/facturas/13_sin_saldo.pdf,web,FRENAR,"Saldo insuficiente: PEN 34.000 (USD 9.066,67) supera el saldo del mes (USD 8.600 antes de los pagos del día)",0

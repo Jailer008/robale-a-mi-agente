@@ -17,6 +17,8 @@ from typing import Literal
 import pymupdf
 from PIL import Image, ImageFilter, ImageStat, UnidentifiedImageError
 
+from extraccion.escaner import trazos_sobre_texto
+
 TipoDocumento = Literal["pdf", "imagen", "texto"]
 
 DPI = 170
@@ -45,6 +47,7 @@ class Documento:
     texto_libre: str = ""
     pdf: bytes | None = None
     avisos: tuple[str, ...] = field(default_factory=tuple)
+    observaciones: str = ""           # bloque "Observaciones:" del PDF, leído sin modelo
 
 
 def sha256_archivo(ruta: Path) -> str:
@@ -88,7 +91,19 @@ def _desde_pdf(datos: bytes) -> dict:
         paginas = list(doc)[:MAX_PAGINAS]
         imagenes = tuple(p.get_pixmap(dpi=_dpi_seguro(p)).tobytes("png") for p in paginas)
         texto = "\n".join(p.get_text() for p in paginas).strip()
-    return {"tipo": "pdf", "imagenes": imagenes, "mime_imagen": "image/png", "texto": texto, "pdf": datos}
+        observaciones = " ".join(
+            " ".join(bloque[4].split(":", 1)[1].split())
+            for p in paginas
+            for bloque in p.get_text("blocks")
+            if bloque[4].strip().lower().startswith("observaciones:")
+        )
+    try:
+        tapados = trazos_sobre_texto(datos)
+    except ValueError as error:
+        tapados = [f"(no se pudo revisar: {error})"]
+    avisos = tuple(f"Hay trazos encima del texto «{t[:60]}»: la lectura no es confiable." for t in tapados)
+    return {"tipo": "pdf", "imagenes": imagenes, "mime_imagen": "image/png", "texto": texto, "pdf": datos,
+            "observaciones": observaciones, "avisos": avisos}
 
 
 def _desde_imagen(datos: bytes, mime: str) -> dict:

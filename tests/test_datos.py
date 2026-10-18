@@ -12,38 +12,26 @@ from datetime import date, timedelta
 
 import pytest
 from conftest import DATOS, RAIZ
+from oraculo import (
+    FRENAN,
+    HOY,
+    a_usd,
+    candidatos_duplicado,
+    contrato_de,
+    estado_inicial,
+    proveedor_por_nombre,
+    reglas_de_dinero,
+)
 
-HOY = date(2026, 10, 17)          # fecha de referencia fija: los tests no dependen del reloj
 MONEDAS_FX = {"COP", "MXN", "ARS", "PEN"}
 DECISIONES = {"PAGAR", "ESCALAR", "FRENAR"}
 LIMPIAS = ["01", "02", "03", "04", "05", "06"]
 JURADO = {"07", "08", "10", "11", "12", "14"}
 ESPERADO = {
     "01": "PAGAR", "02": "PAGAR", "03": "PAGAR", "04": "PAGAR", "05": "PAGAR", "06": "PAGAR",
-    "07": "FRENAR", "08": "ESCALAR", "09": "ESCALAR", "10": "ESCALAR", "11": "ESCALAR",
+    "07": "FRENAR", "08": "ESCALAR", "09": "FRENAR", "10": "FRENAR", "11": "ESCALAR",
     "12": "ESCALAR", "13": "FRENAR", "14": "FRENAR", "15": "ESCALAR",
 }
-
-
-# ---------- utilidades del oráculo (misma semántica que documenta datos/README.md) ----------
-
-def a_usd(monto: float, moneda: str, tasas: dict) -> float:
-    return round(monto / tasas[moneda]["unidades_por_usd"], 2)
-
-
-def proveedor_por_nombre(proveedores: list[dict], nombre: str) -> dict | None:
-    return next((p for p in proveedores if p["nombre"] == nombre), None)
-
-
-def contrato_de(contratos: list[dict], proveedor: str) -> dict | None:
-    return next((c for c in contratos if c["proveedor"] == proveedor), None)
-
-
-def pagos_del_mes(historico: list[dict]) -> list[dict]:
-    return [
-        p for p in historico
-        if date.fromisoformat(p["fecha_pago"]).replace(day=1) == HOY.replace(day=1)
-    ]
 
 
 # ---------- archivos de contexto ----------
@@ -143,6 +131,13 @@ def test_ground_truth(ground_truth, facturas):
     assert {n for n, fila in por_numero.items() if fila["jurado"] == "1"} == JURADO
 
 
+def test_v2_09_y_10_frenan_con_su_accion_requerida(ground_truth):
+    """v2: cuenta no registrada o proveedor no dado de alta nunca se pagan, ni con humano."""
+    motivos = {fila["archivo"].split("/")[-1][:2]: fila["motivo_esperado"].lower() for fila in ground_truth}
+    assert "alta" in motivos["09"] and "no aprobable" in motivos["09"]
+    assert "teléfono" in motivos["10"] and "no aprobable" in motivos["10"]
+
+
 def test_formatos_variados(facturas):
     extensiones = {f.archivo.rsplit(".", 1)[-1] for f in facturas.values()}
     assert extensiones >= {"pdf", "png", "eml", "txt", "jpg"}
@@ -224,22 +219,6 @@ def test_chat_y_correos_traen_texto_libre(facturas):
 
 # ---------- duplicados: solo 07 y 08 deben parecerse a un pago previo ----------
 
-def candidatos_duplicado(f, historico, reglas) -> list[dict]:
-    ventana = timedelta(days=reglas["ventana_duplicados_dias"])
-    tol = reglas["tolerancia_monto_duplicado"]
-    salida = []
-    for p in historico:
-        if p["proveedor"] != f.proveedor or p["moneda"] != f.moneda:
-            continue
-        monto = float(p["monto"])
-        if abs(monto - f.total) / monto > tol:
-            continue
-        if abs(date.fromisoformat(p["fecha_pago"]) - f.fecha_emision) > ventana:
-            continue
-        salida.append(p)
-    return salida
-
-
 def test_solo_07_y_08_tienen_candidatos_a_duplicado(facturas, historico, reglas):
     for n, f in facturas.items():
         hay = bool(candidatos_duplicado(f, historico, reglas))
@@ -252,34 +231,6 @@ def test_solo_07_y_08_tienen_candidatos_a_duplicado(facturas, historico, reglas)
 
 
 # ---------- oráculo de reglas de dinero ----------
-
-def reglas_de_dinero(f, gastado_prov, gastado_global, saldo, reglas, tasas) -> set[str]:
-    usd = a_usd(f.total, f.moneda, tasas | {"USD": {"unidades_por_usd": 1}})
-    disparadas = set()
-    if usd > reglas["tope_duro_usd"]:
-        disparadas.add("tope_duro")
-    elif usd > reglas["limite_pago_usd"]:
-        disparadas.add("limite_pago")
-    if gastado_prov.get(f.proveedor, 0) + usd > reglas["limite_mensual_proveedor_usd"]:
-        disparadas.add("mensual_proveedor")
-    if gastado_global + usd > reglas["limite_mensual_global_usd"]:
-        disparadas.add("mensual_global")
-    if usd > saldo:
-        disparadas.add("saldo")
-    return disparadas
-
-
-FRENAN = {"tope_duro", "mensual_proveedor", "mensual_global", "saldo"}
-
-
-def estado_inicial(historico, reglas):
-    gastado_prov: dict[str, float] = {}
-    for p in pagos_del_mes(historico):
-        gastado_prov[p["proveedor"]] = gastado_prov.get(p["proveedor"], 0) + float(p["monto_usd"])
-    gastado_global = sum(gastado_prov.values())
-    saldo = reglas["saldo_disponible_usd"] - gastado_global
-    return gastado_prov, gastado_global, saldo
-
 
 def test_oraculo_en_orden_01_a_15(facturas, historico, reglas, tasas):
     """Procesa en orden pagando solo lo esperado PAGAR, como hará `python -m cerebro.medir`."""

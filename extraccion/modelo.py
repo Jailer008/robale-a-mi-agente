@@ -45,6 +45,8 @@ class CamposExtraidos(BaseModel):
     impuestos: float | None = None
     total: float | None = None
     referencia_contrato: str | None = None
+    # Sin campo "observaciones": con él, Claude rechaza el esquema ("Schema is too complex").
+    # Las observaciones se leen del PDF sin modelo (ingesta.Documento.observaciones).
 
 
 class Extractor(Protocol):

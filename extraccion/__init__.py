@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as TiempoAgotado
@@ -29,13 +30,19 @@ from extraccion.modelo import CamposExtraidos, Extractor
 from extraccion.validador import validar
 from schemas import FacturaCanonica
 
-__all__ = ["extraer", "extractores_por_defecto", "timeout_configurado"]
+__all__ = ["enmascarar", "extraer", "extractores_por_defecto", "timeout_configurado"]
 
 log = logging.getLogger(__name__)
-# Gemini tardó 17-28 s en leer facturas correctamente en la prueba real del 2026-10-17.
-TIMEOUT_POR_DEFECTO_S = 45.0
+# OpenAI + Claude tardan 3-5 s por factura (2026-10-17); la cola de la demo da 25 s por intento.
+TIMEOUT_POR_DEFECTO_S = 20.0
 MARGEN_S = 5.0          # cada extractor corta antes que el orquestador
 _MAX_ERROR = 200
+
+
+def enmascarar(cuenta: str | None) -> str:
+    """'ATACANTE-7781' -> '…7781'. Registro, API y pantallas nunca muestran la cuenta completa."""
+    alfanumerico = re.sub(r"[^0-9A-Za-z]", "", cuenta or "")
+    return f"…{alfanumerico[-4:]}" if alfanumerico else ""
 
 
 def timeout_configurado() -> float:

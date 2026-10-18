@@ -169,3 +169,23 @@ def test_todos_aceptan_etiqueta_y_prompt_propios(clase):
     extractor = clase(etiqueta="B-relectura", prompt="otro prompt")
     assert extractor.nombre.startswith("B-relectura:")
     assert extractor.prompt == "otro prompt"
+
+
+# ---------- humo con las APIs reales (pytest -m live) ----------
+
+@pytest.mark.live
+@pytest.mark.parametrize("proveedor", ["openai", "claude"])
+def test_cada_extractor_real_acepta_el_esquema_y_lee_la_01(proveedor):
+    """Atrapa lo que los falsos no pueden: p. ej. 'Schema is too complex' (400) de Claude."""
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    clave = {"openai": "OPENAI_API_KEY", "claude": "ANTHROPIC_API_KEY"}[proveedor]
+    if not os.environ.get(clave):
+        pytest.skip(f"sin {clave}")
+    extractor = (ExtractorOpenAI if proveedor == "openai" else ExtractorClaude)(timeout_s=60)
+    esperado = cargar_factura_json("01")
+    campos = extractor(doc_01())
+    assert (campos.numero_factura, campos.total) == (esperado.numero_factura, esperado.total)

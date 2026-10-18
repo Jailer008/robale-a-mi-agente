@@ -32,6 +32,14 @@ def _fecha(valor: str | None, etiqueta: str, problemas: list[str]) -> date | Non
         return None
 
 
+def _texto_libre(doc: Documento) -> str:
+    """Cuerpo del correo o chat + "Observaciones" del PDF: lo que lee el agente de seguridad.
+
+    Las observaciones se leen del PDF sin modelo: un modelo podría resumirlas u omitirlas.
+    """
+    return "\n\n".join(parte for parte in (doc.texto_libre, doc.observaciones) if parte)
+
+
 def factura_vacia(id_documento: str, archivo: str, canal: str, diferencias: list[str],
                   texto_libre: str = "", texto_oculto: list[str] | None = None) -> FacturaCanonica:
     """Factura que solo sirve para escalar: no hay datos confiables."""
@@ -88,6 +96,6 @@ def construir_factura(doc: Documento, campos: CamposExtraidos, canal: str) -> tu
         impuestos=campos.impuestos or 0.0,
         total=campos.total if campos.total is not None else 0.0,
         referencia_contrato=campos.referencia_contrato,
-        texto_libre=doc.texto_libre,
+        texto_libre=_texto_libre(doc),
     )
     return factura, problemas

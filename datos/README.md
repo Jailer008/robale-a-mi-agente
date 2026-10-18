@@ -10,7 +10,7 @@ Todo lo que hay aquí es inventado: empresas, personas, IDs fiscales y cuentas.
 | `tasas_fx.yaml` | Tasa, fuente y fecha por moneda |
 | `facturas/` | Los 15 documentos (PDF, PNG, JPG, `.eml`, `.txt`) |
 | `facturas_json/NN.json` | La `FacturaCanonica` correcta de cada documento: entrada de Dev 2 y ground truth de la extracción |
-| `ground_truth.csv` | Decisión y motivo esperados; `jurado=1` marca el paquete del jurado (07, 08, 10, 11, 12, 14) |
+| `ground_truth.csv` | Decisión y motivo esperados; `jurado=1` marca el paquete del jurado (07, 08, 10, 11, 12, 14). v2: 09 y 10 son FRENAR no aprobables |
 | `generar.py` | Dibuja los documentos a partir de los JSON y actualiza `id_documento` |
 
 ## Supuestos que el cerebro (Dev 2) debe respetar
@@ -34,6 +34,33 @@ del mes, la 13 (PEN 34.000 = USD 9.066,67) supera el saldo (USD 8.600, o menos d
 pagar las limpias) sin tocar el tope duro ni el límite mensual del proveedor. La 12
 (USD 7.400) sí cabe en el saldo que queda tras pagar las 6 limpias (USD 7.477,34), así que
 solo escala por el límite por pago.
+
+## Modo en vivo (v2): el jurado falsifica facturas
+
+| Archivo | Qué es |
+|---|---|
+| `base/base_01..08.json` | Facturas que el servidor reparte: 5 limpias (USD 833–1.120, cinco monedas) y 3 trampas (06 tarifa +30 %, 07 USD 7.400, 08 nota oculta). Cada una trae `esperado_tal_cual` y `pista` |
+| `plantillas/factura.html` | Plantilla Jinja2 (autoescape) con la que se dibuja todo lo del modo en vivo |
+
+```python
+from extraccion.render import render_factura, preview_png, CambiosInvalidos
+from extraccion import extraer, enmascarar
+
+pdf = render_factura("base_01", {"cuenta": "ATACANTE-7781"}, rayones_png, "A7", Path("intentos/"))
+factura = extraer(pdf, "web")        # el agente lee el PDF, nunca el formulario
+enmascarar(factura.cuenta_bancaria)  # "…7781"
+```
+
+- **Cambios permitidos:** `monto` (0 a 1.000.000.000), `cuenta`, `proveedor` y `numero` (máx. 40 caracteres de `[A-Za-z0-9 .-_/áéíóúñ]`), `nota` (máx. 200) y `nota_oculta` (bool). `rayones_png`: PNG transparente de máx. 2 MB. Cualquier otra cosa lanza `CambiosInvalidos` (subclase de `ValueError`: respóndela con 400); una base desconocida lanza `ValueError`.
+- **Número:** si el jurado no lo cambia se dibuja `"{numero}-{sufijo}"` (evita duplicados falsos entre jurados); si lo cambia (p. ej. `FV-0192`) se respeta.
+- **Monto (opción simple del plan):** se cambia solo el total; líneas y subtotal quedan igual. El validador ve que no suman y la factura escala (y el cerebro frena si supera el tope duro).
+- **Proveedor:** cambia solo el nombre; el ID fiscal y la cuenta siguen siendo los de la base.
+- **Nota:** visible → bloque "Observaciones", que llega a `texto_libre` leído del PDF sin modelo; oculta → texto blanco de 1 pt, que llega a `texto_oculto`.
+- **Rayones:** si un trazo tapa texto (≥ 5 % de un fragmento), la ingesta agrega el aviso "Hay trazos encima del texto «…»" y la factura escala. Un trazo en el margen no cuenta.
+
+Medición real del modo en vivo (2026-10-17, GPT-6 Luna + Claude Haiku 5.5): render + extracción en 3–5,5 s por intento. Tal cual, la cuenta del atacante y `FV-0192` se leen exactos (`extraccion_ok=True`, el cerebro decide); monto 999.999.999 y rayón sobre el total dan `extraccion_ok=False`; las notas llegan a `texto_libre` o `texto_oculto`.
+
+**Ojo con el saldo en la demo:** tras `reiniciar_demo()` el saldo es USD 8.600. Las 5 limpias suman USD 4.939, así que después de unos 7 pagos limpios las siguientes frenan por `SALDO`, y reenviar la misma base escala por duplicado difuso. Ambas cosas son correctas, pero conviene saberlo antes del pitch.
 
 ## Caché de demo
 
