@@ -276,3 +276,26 @@ def test_enmascarar_es_el_mismo_del_cerebro(cuenta):
     from cerebro.privacidad import enmascarar as del_cerebro
 
     assert enmascarar(cuenta) == del_cerebro(cuenta)
+
+
+# ---------- rayones dibujados por el servidor (el jurado elige qué rayar) ----------
+
+@pytest.mark.parametrize("objetivo", ["total", "cuenta", "numero"])
+def test_rayones_sobre_un_objetivo_escalan(tmp_path, objetivo):
+    from extraccion.render import rayones_sobre
+
+    aplicada = aplicar_cambios(cargar_base("base_01"), {}, "S1")
+    png = rayones_sobre(aplicada, [objetivo])
+    assert png.startswith(PNG)
+    ruta = render_factura("base_01", {}, png, "S1", tmp_path)
+    f = extraer_con_lectura_perfecta(ruta, aplicada)
+    assert f.extraccion_ok is False
+    assert any("trazos" in d for d in f.diferencias)
+
+
+@pytest.mark.parametrize("objetivos", [[], ["firma"], ["total", "total", "total", "total"]])
+def test_rayones_sobre_objetivos_invalidos(objetivos):
+    from extraccion.render import rayones_sobre
+
+    with pytest.raises(CambiosInvalidos):
+        rayones_sobre(aplicar_cambios(cargar_base("base_01"), {}, "S1"), objetivos)
