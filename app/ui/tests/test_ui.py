@@ -30,6 +30,18 @@ BASE = {"base_id": "base_01", "etiqueta_modo": "FACTURA FALSIFICADA — EL AGENT
 PNG_1X1 = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
                         "1f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4c00000000049454e44ae426082")
 
+ESTADO = {"intentos": 3, "pagos": 1, "pagos_auditados": 1, "pagos_fuera_de_reglas": 0, "frenados": 2,
+          "escalados": 0, "auditoria": "Cada PAGAR se re-audita.",
+          "ultimo": {"factura_id": "a" * 64, "decision": "FRENAR", "codigo_principal": "CUENTA_NO_REGISTRADA",
+                     "aprobable": False, "accion_requerida": "Verificar por teléfono.", "monto_original": 1120.0,
+                     "moneda": "USD", "explicacion": "Cuenta termina en 7781; la registrada termina en 0423."},
+          "feed": [{"alias": "Atacante #2", "modo": "FACTURA FALSIFICADA", "campos_cambiados": ["cuenta", "monto"],
+                    "monto": 9800.0, "moneda": "USD", "cuenta_enmascarada": "****7781", "decision": "FRENAR",
+                    "codigo": "CUENTA_NO_REGISTRADA", "factura_id": "a" * 64, "ts": "2026-10-18T10:00:00+00:00"},
+                   {"alias": "Atacante #1", "modo": "FACTURA FALSIFICADA", "campos_cambiados": [],
+                    "monto": 1120.0, "moneda": "USD", "cuenta_enmascarada": "****0423", "decision": "PAGAR",
+                    "codigo": "OK", "factura_id": "b" * 64, "ts": "2026-10-18T09:59:00+00:00"}]}
+
 
 def decision(decision: str, codigo: str, aprobable: bool, estado: str = "final", fid: str = "a" * 64) -> dict:
     return {"factura_id": fid, "numero_factura": "AL-1", "proveedor": "Nubia Studio SAS", "decision": decision,
@@ -48,6 +60,7 @@ class ApiFalsa:
         self.items = items or []
         self.solicitudes: list[httpx.Request] = []
         self.falsificaciones: list[dict] = []
+        self.resoluciones: list[tuple[str, str | None]] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.solicitudes.append(request)
@@ -67,6 +80,11 @@ class ApiFalsa:
                                              "factura": {}})
         if ruta == "/decisiones":
             return httpx.Response(200, json={"total": len(self.items), "items": self.items})
+        if ruta == "/estado":
+            return httpx.Response(200, json=ESTADO)
+        if ruta.startswith("/aprobar/") or ruta.startswith("/rechazar/"):
+            self.resoluciones.append((ruta, request.headers.get("authorization")))
+            return httpx.Response(200, json=decision("PAGAR", "OK", False))
         if ruta == "/falsificar/base":
             return httpx.Response(200, json=BASE)
         if ruta == "/falsificar/base/base_01/preview.png":
@@ -197,3 +215,60 @@ def test_config_de_streamlit_para_el_jurado():
     assert config["theme"]["base"] == "dark"
     assert config["client"]["toolbarMode"] == "viewer"
     assert config["browser"]["gatherUsageStats"] is False
+
+
+# ---------- pantalla del pitch y página del aprobador ----------
+
+def html_y_textos(at: AppTest) -> str:
+    return "\n".join([textos(at), *(str(m.value) for m in at.markdown), *(str(m.value) for m in at.caption)])
+
+
+def test_pantalla_contadores_ultimo_y_feed(api, monkeypatch):
+    api()
+    monkeypatch.setenv("PUBLIC_URL", "https://demo-robale.trycloudflare.com")
+    at = correr("pantalla")
+    contenido = html_y_textos(at)
+    assert "Intentos de robo" in contenido and "Pagos indebidos" in contenido
+    assert [m.value for m in at.metric if m.label == "Pagos indebidos"] == ["0"]
+    assert [m.value for m in at.metric if m.label == "Intentos de robo"] == ["3"]
+    assert "Atacante #2" in contenido and "cuenta, monto" in contenido and "****7781" in contenido
+    assert "CUENTA_NO_REGISTRADA" in contenido
+    assert 'alt="Código QR para atacar: https://demo-robale.trycloudflare.com/"' in contenido
+    assert "QR del aprobador" not in contenido                 # sin sesión de operador no se muestra
+
+
+def test_pantalla_avisa_si_la_url_no_es_publica(api, monkeypatch):
+    api()
+    monkeypatch.delenv("PUBLIC_URL", raising=False)
+    assert "solo funciona en esta máquina" in html_y_textos(correr("pantalla"))
+
+
+def test_qr_del_aprobador_solo_con_operador(api, monkeypatch):
+    api()
+    monkeypatch.setenv("PUBLIC_URL", "https://demo-robale.trycloudflare.com")
+    monkeypatch.setenv("APROBADOR_JURADO_TOKEN", "token-del-jurado-aprobador-0123456789")
+    at = correr("pantalla", {"token": "token-operador-de-prueba-000000000", "mostrar_qr_aprobador": True})
+    contenido = html_y_textos(at)
+    assert "QR del aprobador" in contenido
+    assert "token-del-jurado-aprobador-0123456789" not in textos(at)     # solo dentro del QR, nunca en texto
+
+
+def test_aprobar_sin_clave_pide_el_qr(api):
+    api()
+    assert "Escanea el QR del aprobador" in html_y_textos(correr("aprobar"))
+
+
+def test_aprobar_con_clave_en_la_url(api):
+    falsa = api([decision("ESCALAR", "LIMITE_PAGO", True, "pendiente_humano", "c" * 64),
+                 decision("ESCALAR", "CUENTA_NO_REGISTRADA", False, "pendiente_humano", "d" * 64),
+                 decision("FRENAR", "CUENTA_NO_REGISTRADA", False, "final", "e" * 64)])
+    at = AppTest.from_string("import paginas\npaginas.aprobar()\n", default_timeout=30)
+    at.query_params["clave"] = "token-del-jurado-aprobador-0123456789"
+    at = at.run()
+    assert at.session_state["token"] == "token-del-jurado-aprobador-0123456789"
+    assert "clave" not in at.query_params                         # la clave no queda en la URL
+    botones = [b.key for b in at.button if b.label == "✅ Aprobar"]
+    assert botones == ["jap_" + "c" * 64]
+    assert "No se puede aprobar desde aquí" in html_y_textos(at) and "Verificar por teléfono" in html_y_textos(at)
+    at = next(b for b in at.button if b.key == "jap_" + "c" * 64).click().run()
+    assert falsa.resoluciones == [(f"/aprobar/{'c' * 64}", "Bearer token-del-jurado-aprobador-0123456789")]
