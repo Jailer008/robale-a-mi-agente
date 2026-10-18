@@ -243,3 +243,22 @@ Ninguna respuesta ni el log de la API contienen cuentas completas ni tokens; la 
 1. **Rayones a mano alzada:** el componente `streamlit-drawable-canvas` no funciona con este Streamlit (falla al registrarse). La UI ofrece "Rayar encima de…" y el servidor dibuja; la API ya acepta `rayones_png_b64` para una página de dibujo propia.
 2. **Cuota por IP:** con 6/min, jurados detrás de la misma IP se bloquean entre sí. Ajustar `APP_FALSIFICAR_POR_MINUTO_IP`.
 3. **Saldo:** cada PAGAR consume saldo de la demo (USD 8.600 tras reiniciar); usar `/admin/reiniciar-demo` entre ensayos.
+
+### Pantalla, aprobador y URL pública (Dev 3, 2026-10-18)
+
+| Pieza | Detalle |
+|---|---|
+| `GET /estado` | Contadores sobre la última decisión de cada factura (el paquete del jurado no cuenta), último veredicto y feed seguro: «Atacante #N», nombres de los campos cambiados, monto y cuenta enmascarada. Nunca la nota, el proveedor escrito ni la sesión |
+| «Pagos indebidos» | `app/auditoria.py` re-audita **cada PAGAR** contra el catálogo: proveedor permitido, cuenta registrada (HMAC con `cerebro.privacidad.coincide`), lectura válida, sin texto oculto y límites (o aprobación humana). No repite lo que dijo el cerebro |
+| Página `/pantalla` | Para proyectar: contadores, sello, feed (se actualiza cada 2 s) y QR hacia la URL pública (`PUBLIC_URL` o el `Host` del túnel). Con sesión de operador y `APROBADOR_JURADO_TOKEN`, muestra el **QR del aprobador** |
+| Página `/aprobar` | Para el jurado voluntario: la clave del QR pasa a la sesión del servidor y se borra de la URL. Botones solo para lo aprobable; lo demás muestra la acción requerida |
+| Servicio `tunel` | `cloudflare/cloudflared:2026.10.1`, perfil `publico`, solo hacia la UI (la API sigue privada) |
+
+Verificado (2026-10-18): por el túnel, desde Chrome emulando un iPhone, un ataque de cambio de cuenta → FRENAR `CUENTA_NO_REGISTRADA`; `/pantalla` proyectada (1440 px) con contadores, feed y QR público; `/aprobar` sin clave pide escanear el QR.
+
+**Día del pitch (en este orden):**
+1. Docker Desktop encendido. En `.env`: claves de los modelos, `ATTACK_LAB_EXTRACCION_LIVE=1`, tokens de operador y `APROBADOR_JURADO_TOKEN` (el token de una identidad que esté en `CEREBRO_APROBADORES`).
+2. `docker compose --profile publico up -d --build`, y luego `docker compose logs tunel` para copiar la URL `https://….trycloudflare.com` (cambia en cada arranque; un *quick tunnel* no tiene garantía de disponibilidad: ensaya antes).
+3. Reiniciar la demo justo antes (saldo, límites y cadena limpios): `POST /admin/reiniciar-demo` con el token de admin.
+4. Proyectar `<URL>/pantalla`. Iniciar sesión de operador en la barra lateral **solo en esa máquina** y activar «Mostrar QR del aprobador» cuando algo escale.
+5. Al terminar: `docker compose stop tunel` (la app deja de ser pública).
