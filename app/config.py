@@ -8,6 +8,10 @@ Variables (además de las del cerebro: DB_PATH, CEREBRO_APROBADORES, CEREBRO_ADM
   APP_ENTRADA_DIR        carpeta de archivos subidos (por defecto "entrada", ignorada por git)
   ATTACK_LAB_EXTRACCION_LIVE=1   autoriza extractores LIVE (cuesta dinero). Por defecto: solo caché.
   APP_CONFIAR_EN_PROXY=1         usar X-Forwarded-For para el límite por IP (solo detrás de un proxy propio)
+  APP_FALSIFICAR_POR_MINUTO_IP   cuota del modo «factura falsificada» por IP (6). Súbela si los jurados
+                                 comparten IP (misma Wi-Fi o un proxy sin APP_CONFIAR_EN_PROXY)
+  APP_FALSIFICAR_POR_HORA_SESION / APP_FALSIFICAR_POR_MINUTO_GLOBAL   (10 / 30); cada intento cuesta una
+                                 extracción LIVE
 """
 
 from __future__ import annotations
@@ -79,4 +83,17 @@ def desde_entorno() -> Ajustes:
         entrada=Path(os.environ.get("APP_ENTRADA_DIR") or "entrada"),
         confiar_en_proxy=os.environ.get("APP_CONFIAR_EN_PROXY") == "1",
         tokens={**_tokens("APP_APROBADOR_TOKENS", "aprobador"), **_tokens("APP_ADMIN_TOKENS", "admin")},
+        falsificar_por_minuto_ip=_entero("APP_FALSIFICAR_POR_MINUTO_IP", Ajustes.falsificar_por_minuto_ip),
+        falsificar_por_hora_sesion=_entero("APP_FALSIFICAR_POR_HORA_SESION", Ajustes.falsificar_por_hora_sesion),
+        falsificar_por_minuto_global=_entero("APP_FALSIFICAR_POR_MINUTO_GLOBAL",
+                                             Ajustes.falsificar_por_minuto_global),
     )
+
+
+def _entero(variable: str, defecto: int, tope: int = 1000) -> int:
+    """Entero positivo del entorno; si falta o es inválido, el valor por defecto."""
+    try:
+        valor = int(os.environ.get(variable) or defecto)
+    except ValueError:
+        return defecto
+    return min(valor, tope) if valor > 0 else defecto

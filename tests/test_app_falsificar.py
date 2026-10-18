@@ -183,3 +183,14 @@ def test_cuota_por_sesion(tmp_path):
 
 def test_health_informa_el_modo(cliente):
     assert cliente.get("/health").json()["modo_falsificar"].startswith("LIVE")
+
+
+def test_cuotas_de_falsificar_configurables_por_entorno(monkeypatch):
+    """Si los jurados comparten IP (misma Wi-Fi o proxy), la cuota por IP debe poder subirse."""
+    from app.config import desde_entorno
+
+    monkeypatch.setenv("APP_FALSIFICAR_POR_MINUTO_IP", "40")
+    monkeypatch.setenv("APP_FALSIFICAR_POR_HORA_SESION", "abc")          # inválido → valor por defecto
+    ajustes = desde_entorno()
+    assert ajustes.falsificar_por_minuto_ip == 40
+    assert ajustes.falsificar_por_hora_sesion == 10
