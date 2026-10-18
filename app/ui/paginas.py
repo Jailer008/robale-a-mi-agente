@@ -63,14 +63,14 @@ def _estado_humano(d: dict) -> str:
     return "Nadie puede aprobarla así: hay que corregir el dato y volver a evaluarla."
 
 
-def _resultado(r: dict) -> None:
+def _resultado(r: dict, animar: bool = False) -> None:
     """Paso 3 · veredicto. Decisión, código, aprobable y acción vienen tal cual de la API."""
     d = r["decision"]
     if r.get("modo_analisis"):
         estilo.chip(r["modo_analisis"], "neutro")
     if r.get("fuente_extraccion"):
         estilo.chip(f"lectura: {r['fuente_extraccion']}", "neutro")
-    estilo.sello(d["decision"], d["codigo_principal"], grande=True)
+    estilo.sello(d["decision"], d["codigo_principal"], grande=True, animar=animar)
     st.markdown(f"**En simple:** {d['explicacion']}")
     if d.get("accion_requerida"):
         st.warning(f"Acción requerida: {d['accion_requerida']}")
@@ -214,7 +214,7 @@ def _falsificar(ataque: str) -> None:
         estilo.paso(3, "Veredicto del agente", "Decisión real de la API: reglas deterministas + cinco agentes.")
         cambiados = ", ".join(r.get("campos_cambiados") or []) or "nada (la enviaste tal cual)"
         st.markdown(f"**Lo que cambiaste:** {cambiados} · lectura: {r.get('fuente_extraccion', '—')}")
-        _resultado(r)
+        _resultado(r, animar=enviar)
 
 
 def _sintetico(ataque: str) -> None:
@@ -617,8 +617,11 @@ def pantalla() -> None:
             st.caption(f"{e['pagos_auditados']} pagos simulados, auditados de forma independiente. {e['auditoria']}")
             ultimo = e.get("ultimo")
             if ultimo:
+                # Solo cae (animación) cuando llega un veredicto nuevo, no en cada refresco de 2 s.
+                nuevo = ultimo.get("factura_id") != st.session_state.get("pantalla_ultimo")
+                st.session_state["pantalla_ultimo"] = ultimo.get("factura_id")
                 st.markdown("**Último veredicto**")
-                estilo.sello(ultimo["decision"], ultimo["codigo_principal"], grande=True)
+                estilo.sello(ultimo["decision"], ultimo["codigo_principal"], grande=True, animar=nuevo)
                 st.write(ultimo["explicacion"])
             st.subheader("Últimos intentos")
             if not e["feed"]:

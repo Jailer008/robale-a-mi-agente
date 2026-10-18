@@ -2,10 +2,10 @@
 # (con el tema claro el texto de la barra quedaba con contraste 1,16:1) y sin el botón «Deploy».
 [theme]
 base = "dark"
-primaryColor = "#B8F56A"
-backgroundColor = "#080D18"
-secondaryBackgroundColor = "#111B2B"
-textColor = "#F2F6FC"
+primaryColor = "#8b5cf6"
+backgroundColor = "#111827"
+secondaryBackgroundColor = "#1f2937"
+textColor = "#f3f4f6"
 
 [client]
 toolbarMode = "viewer"
